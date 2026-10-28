@@ -61,7 +61,18 @@ row per molecule, the zero-shot model is *behind* the random forest (0.764 vs 0.
 positive molecules. The QLoRA collapse does survive the molecule-level bootstrap (−0.368 against the
 base model, CI [+0.013, +0.658] on the difference) but not a per-seed test (p = 0.72, 2/6 seeds).
 The live question is therefore narrower: does fine-tuning cost deep-novelty performance, and do the
-LLM-as-Jev KL anchors — omitted in this implementation — prevent it?
+LLM-as-Jev KL anchors prevent it? Both were tested on 2026-10-28 with the anchors implemented and a
+matched epoch-0 control inside every run:
+
+| epochs of QLoRA | overall AUROC | novel AUROC (lambda 0) | novel AUROC (lambda 1) |
+|---|---|---|---|
+| 0 (base model) | 0.660 | 0.690 | 0.690 |
+| 3 | 0.832 / 0.863 | 0.470 | 0.606 |
+
+**The trade is real in shape**: overall accuracy climbs while unfamiliar-chemistry accuracy falls at
+every epoch, and the anchors flatten that fall. **None of it is significant**, and a rerun of the
+identical lambda = 0 configuration shifts the headline AUROC by -0.028 +/- 0.089 -- as much as the
+anchors do (+0.031 +/- 0.069). The experiment was underpowered against its own noise floor.
 
 ## Candidate screening
 
@@ -78,9 +89,9 @@ about an untested molecule.
 |---|---|
 | TG2 molecules | 631 (from 305), PubChem + ChEMBL, sources verified to agree |
 | Experiments | baselines, tuned baselines, frozen-embedding probe, zero-shot Jev readout, QLoRA fine-tune, calibration, generalization, uncertainty, screening |
-| Artifacts | 10 LoRA adapters (1.7 GB), per-seed predictions, 20 result tables, 4 figures |
-| Tests | 14 passing |
-| Git | 4 commits; nothing pushed |
+| Artifacts | 30 LoRA adapters (5.1 GB), per-seed and per-epoch predictions, 31 result tables, 5 figures |
+| Tests | 19 passing |
+| Git | 6 commits; nothing pushed |
 
 ## Documents
 - [`report.md`](report.md) — the professor-facing write-up, with figures and references
@@ -100,5 +111,7 @@ about an untested molecule.
    used here is the published LLM-as-Jev method on Qwen.
 3. **Is a negative result acceptable** as the month-1 outcome? The evidence is clean and the
    methodology is sound; the headline is that fingerprints remain the better model at this data scale.
-4. **Which direction next** — extend the fine-tune, chase the novel-chemistry hypothesis, or move to
-   a chemically appropriate screening library? These are mutually exclusive at this pace.
+4. **Which direction next?** The novel-chemistry hypothesis was chased and came back promising but
+   unproven ([`forgetting.md`](forgetting.md)). The cheapest way forward is replicates and
+   determinism fixes to beat the noise floor; the alternatives are a chemically appropriate
+   screening library, or more low-similarity actives from related transglutaminases.

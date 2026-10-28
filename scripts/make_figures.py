@@ -114,9 +114,37 @@ def fig_models():
     fig.savefig(f"{OUT}/model_comparison.png", dpi=160)
 
 
+def fig_forgetting():
+    """Overall accuracy rises while unfamiliar-chemistry accuracy falls, and what the anchors do."""
+    d = pd.read_csv("results/kl_compare.csv")
+    d = d[d.epoch.astype(str).str.isdigit() & d.overall_auroc.notna()].astype({"epoch": int})
+    fig, axes = plt.subplots(1, 2, figsize=(9, 4), sharex=True, sharey=True)
+    style = {0.0: ("#b03a5b", "lambda = 0 (no anchors)"), 1.0: ("#1b4332", "lambda = 1 (paper default)")}
+    for ax, (col, lo, hi, title) in zip(axes, [
+            ("overall_auroc", None, None, "All test molecules"),
+            ("novel_auroc", "novel_lo", "novel_hi", "Max Tanimoto to train < 0.5 (42 molecules)")]):
+        for lam, g in d.groupby("lam"):
+            c, lab = style.get(lam, ("#777", str(lam)))
+            g = g.sort_values("epoch")
+            ax.plot(g.epoch, g[col], marker="o", color=c, lw=2, label=lab)
+            if lo and g[lo].notna().all():
+                ax.fill_between(g.epoch, g[lo], g[hi], color=c, alpha=0.12)
+            elif col == "overall_auroc":
+                ax.fill_between(g.epoch, g[col] - g.overall_sd, g[col] + g.overall_sd, color=c, alpha=0.12)
+        ax.axhline(0.5, ls="--", c="#999", lw=1)
+        ax.set_title(title, fontsize=10)
+        ax.set_xlabel("epochs of QLoRA (0 = untouched base model)")
+        ax.set_xticks(sorted(d.epoch.unique()))
+    axes[0].set_ylabel("test AUROC")
+    axes[0].legend(frameon=False, fontsize=8, loc="lower right")
+    fig.suptitle("Fine-tuning buys familiar chemistry and spends unfamiliar chemistry", fontsize=11)
+    fig.tight_layout()
+    fig.savefig(f"{OUT}/forgetting.png", dpi=160)
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    for f in (fig_similarity, fig_selective, fig_conformal, fig_models):
+    for f in (fig_similarity, fig_selective, fig_conformal, fig_models, fig_forgetting):
         f()
         print("wrote", f.__name__)
     print(f"figures in {OUT}/")

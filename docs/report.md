@@ -169,20 +169,58 @@ Even after calibration, QLoRA's ECE (0.177) remains worse than the uncalibrated 
 **Below 0.4 Tanimoto the fingerprint models rank at chance.** The headline 0.898 is earned on
 molecules with a reasonably close training analog.
 
-On the **strict novelty subset** (42 molecules with no training analog above 0.5 Tanimoto):
+On the **strict novelty subset** (42 molecules with no training analog above 0.5 Tanimoto), scored
+one row per molecule with a cluster bootstrap that resamples molecules rather than predictions:
 
-| model | novel only | all test | change |
+| model | novel only | all test | 95% CI on the novel column |
 |---|---|---|---|
-| random forest | 0.794 | 0.892 | −0.098 |
-| XGBoost | 0.696 | 0.894 | −0.198 |
-| **Qwen zero-shot** | **0.807** | 0.663 | **+0.144** |
-| Qwen QLoRA | **0.442** | 0.808 | **−0.366** |
+| **random forest** | **0.782** | 0.892 | [0.569, 0.959] |
+| Qwen zero-shot | 0.764 | 0.663 | [0.556, 0.931] |
+| XGBoost | 0.694 | 0.894 | [0.430, 0.925] |
+| Qwen QLoRA | **0.396** | 0.808 | [0.062, 0.745] |
 
-**The zero-shot LLM is the best model on unfamiliar chemistry and the worst overall; fine-tuning
-reverses both.** The most plausible reading is that LoRA on 569 molecules teaches the model these
-chemotypes while overwriting the general chemical prior that made the zero-shot readout robust —
-buying in-distribution accuracy with out-of-distribution knowledge. On 42 pooled molecules this is a
-hypothesis, not a result, but it is the sharpest one the project has produced.
+An earlier version of this report put zero-shot Qwen first here at 0.807, ahead of the forest. That
+was an artefact: those numbers pooled 51 predictions over 10 *overlapping* test folds, and the
+zero-shot score for a molecule is cached and identical in every fold, so pooling reweighted its
+molecules by fold membership. Molecule for molecule the zero-shot readout is **0.019 behind** the
+random forest (95% CI [−0.257, +0.192]), and it leads only at novelty cutoffs where the subset holds
+one or three positive molecules. **The claim that the base LLM generalizes better to unfamiliar
+chemistry than fingerprints do is withdrawn.**
+
+What survives is the other half: **the fine-tuned model is far below the base model it started
+from** (−0.368, 95% CI [+0.013, +0.658] on the difference), which motivated the next experiment.
+
+### Does fine-tuning overwrite the base model's chemical prior?
+
+![forgetting](../results/figures/forgetting.png)
+
+The LLM-as-Jev objective includes KL anchors to a frozen reference model, omitted from our first
+implementation. We implemented all three (`src/models/jev_anchors.py`, paper §3.4) and reran 10
+seeds at λ = 0 and λ = 1, logging predictions after every epoch including epoch 0 — the adapter is
+reset to B = 0 per seed, so each run carries its own matched base-model control on its own molecules.
+
+| epochs | overall AUROC (λ=0) | novel AUROC (λ=0) | overall AUROC (λ=1) | novel AUROC (λ=1) |
+|---|---|---|---|---|
+| 0 (base model) | 0.660 | 0.690 | 0.660 | 0.690 |
+| 1 | 0.820 | 0.616 | 0.845 | 0.560 |
+| 2 | 0.820 | 0.484 | 0.827 | 0.546 |
+| 3 | 0.832 | **0.470** | 0.863 | **0.606** |
+
+**The trade has the right shape.** Without anchors, overall accuracy climbs from 0.660 to 0.832
+while unfamiliar-chemistry accuracy falls monotonically from 0.690 to 0.470. With anchors the fall
+is shallower and reverses by epoch 3, and overall accuracy ends higher rather than lower.
+
+**None of it is statistically established.** The forgetting comes closest — the paired bootstrap
+puts λ=0's epoch-3 loss at −0.220, 95% CI [−0.492, +0.030] — and every anchor comparison is
+directionally favourable and non-significant (+0.031 overall AUROC, p = 0.181, 7/10 seeds; +0.060
+novel AUROC, P(Δ≤0) = 0.111).
+
+**And the decisive control is negative.** Rerunning the *identical* λ = 0 configuration shifts the
+headline AUROC by −0.028 ± 0.089 (6/10 seeds), with per-seed swings up to 0.18 — as large as the
+anchor effect itself (+0.031 ± 0.069). 4-bit matmuls, non-deterministic CUDA reductions and the
+paged 8-bit optimizer make this experiment underpowered against its own noise floor. KL anchoring is
+**promising and unproven**; detail and the fixes that would settle it are in
+[`forgetting.md`](forgetting.md).
 
 ### Conformal prediction is the method that survives shift
 
@@ -275,16 +313,18 @@ training set.** Reporting the 35 nominal hits as candidates would have been easy
    runs were truncated and 0.850 is a lower bound. Six epochs with early stopping costs about 4 GPU
    hours and would settle whether the 0.049 gap to the random forest is real or an artifact of
    stopping early. This is the single cheapest way to make the headline conclusion safe.
-2. **Test the novel-chemistry hypothesis properly** — the one result worth chasing. Pre-register a
-   similarity-stratified comparison, expand ChEMBL to related transglutaminases to grow the
-   low-similarity stratum, and test zero-shot Qwen against fingerprints only there. Pair it with a
-   LoRA rank / learning-rate / KL-anchor sweep to find out whether the fine-tuning collapse on novel
-   chemistry can be tuned away, since the LLM-as-Jev paper's KL anchors exist precisely to stop a
-   LoRA from overwriting the base model's general behaviour and were omitted here.
-3. **Screen a chemically appropriate library**: analogs within 0.5–0.7 Tanimoto of known actives, or
+2. **Beat the noise floor before trusting any more small effects.** Make training deterministic
+   (`torch.use_deterministic_algorithms(True)`, fixed cuBLAS workspace, non-paged optimizer), then
+   run three to five replicates per condition. The KL-anchor result is currently indistinguishable
+   from rerun-to-rerun variation, and so would be any other 0.03-AUROC effect this project measures.
+   Only after that are the paper's remaining ablation points (λ = 0.1, 0.01) worth the GPU time.
+3. **Grow the low-similarity stratum.** Six positive molecules below 0.5 Tanimoto is the binding
+   constraint on every novelty number in this report. Related transglutaminases in ChEMBL (TGM1,
+   TGM3, FXIII-A) would add chemically distant actives, at the cost of mixing targets.
+4. **Screen a chemically appropriate library**: analogs within 0.5–0.7 Tanimoto of known actives, or
    covalent fragment libraries. This changes direction from repurposing and needs agreement first.
-4. **Selectivity modelling** against FXIII-A and TG1/TG3, where ChEMBL has data.
-5. **Conformal with a Mondrian split by scaffold cluster**, to give per-chemotype coverage.
+5. **Selectivity modelling** against FXIII-A and TG1/TG3, where ChEMBL has data.
+6. **Conformal with a Mondrian split by scaffold cluster**, to give per-chemotype coverage.
 
 ## 10. What would need laboratory collaboration
 
