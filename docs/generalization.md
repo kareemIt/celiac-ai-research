@@ -40,22 +40,33 @@ are reported instead.
 Restricting to test molecules with **no training analog above 0.5 Tanimoto** — 42 distinct molecules,
 51 predictions across seeds, 18% positive:
 
-| model | AUROC, novel only | AUROC, all test | drop |
+| model | AUROC, novel only | AUROC, all test | change |
 |---|---|---|---|
 | random forest | 0.794 | 0.892 | −0.098 |
 | XGBoost | 0.696 | 0.894 | −0.198 |
 | logistic regression | 0.672 | 0.880 | −0.208 |
-| Qwen zero-shot | **0.807** | 0.663 | **+0.144** |
+| **Qwen zero-shot** | **0.807** | 0.663 | **+0.144** |
+| Qwen QLoRA fine-tune | **0.442** | 0.808 | **−0.366** |
 
-Qwen's zero-shot readout is the only model that does not degrade — it is the *best* model on the
-novel subset, having been the worst overall. That is the first sign in this project of an LLM
-advantage that fingerprints do not have, and it is consistent with the mechanism you would expect:
-a fingerprint model has nothing to match against for an unfamiliar scaffold, while a language model
-can draw on chemical knowledge from pretraining.
+Two things stand out, and they point in opposite directions.
 
-**It is not yet a finding.** 42 molecules, pooled across overlapping test folds, is far too little to
-support the claim, and the comparison was not pre-registered. It is listed in
-[`summary.md`](summary.md) as the single most promising hypothesis to test properly.
+**The zero-shot readout is the only model that does not degrade.** It is the best model on the novel
+subset having been the worst overall, which is what you would expect if it were drawing on chemical
+knowledge from pretraining rather than matching fingerprint bits: a fingerprint model has nothing to
+match for an unfamiliar scaffold, a language model still has priors.
+
+**Fine-tuning destroys that property.** The QLoRA model gains 0.199 AUROC overall (10/10 seeds,
+p=0.001) and simultaneously falls to chance on unfamiliar chemistry — a bigger collapse than any
+fingerprint model. The most plausible reading is that LoRA on 569 molecules teaches the model to
+recognize *these* chemotypes and overwrites the general prior that made the zero-shot readout
+robust. If so, the fine-tuning objective is buying in-distribution accuracy with out-of-distribution
+knowledge, which is exactly the trade a drug-discovery model should not want.
+
+**Neither is a finding yet.** 42 distinct molecules, pooled across overlapping test folds, cannot
+support either claim, and neither comparison was pre-registered. Together they are the sharpest
+hypothesis this project has produced, and testing it properly is the recommended next experiment:
+grow the low-similarity stratum (ChEMBL has related transglutaminases), pre-register the comparison,
+and sweep LoRA rank and learning rate to see whether the forgetting is tunable away.
 
 ## Does the model know when it is out of its depth?
 

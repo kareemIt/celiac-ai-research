@@ -35,7 +35,7 @@ def main(data):
     out = pd.DataFrame(rows)
     out.to_csv(OUT, index=False)
     print(f"## Jev QLoRA calibration ({data}, {out.seed.nunique()} seeds)\n"
-          f"{summarize(out.drop(columns='temperature'), ['calibration']).to_string()}")
+          f"{summarize(out.drop(columns=['temperature', 'model']), ['calibration']).to_string()}")
     t = out[out.calibration == 'none']['temperature']
     print(f"\nfitted temperature: {t.mean():.2f} ± {t.std():.2f} (range {t.min():.2f}–{t.max():.2f})")
 

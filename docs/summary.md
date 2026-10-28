@@ -1,69 +1,100 @@
-# Project summary — state as of 2026-10-27
+# Project summary — state as of 2026-10-28
 
-Start here. Each section links to the doc with the full numbers and the command to reproduce them.
+Start here. [`report.md`](report.md) is the full write-up for the professor; this page is the index
+and the short version.
 
-## What was built
-A fully local research environment on the user's PC: Windows 11 → WSL2 Ubuntu 22.04 → Python 3.12 → PyTorch 2.14.1 (CUDA 13.0) → Qwen3.5-9B in 4-bit. **No hosted model APIs are used anywhere.** Details and measured numbers: [`setup.md`](setup.md).
+## The question
+Can a locally-run ~9B language model, used as a Jev-style decision model, predict TG2 inhibitory
+potency better than standard cheminformatics — and if not, does it add anything they cannot?
 
-| | measured |
-|---|---|
-| GPU | RTX 5070 Ti, 15.89 GiB usable, compute capability 12.0 |
-| Qwen3.5-9B inference | 7.21 GiB peak, 21.1 tok/s |
-| QLoRA fine-tuning | 7.98 GiB peak, 428 s per TG2 training run |
-| Headroom | ~8 GiB spare, so longer sequences and bigger batches are available |
+## The answer
 
-## The research question
-Can a ~9B local LLM, used in the "decision model" style the professor suggested (Jev), predict drug activity better than standard cheminformatics baselines?
+**No, and probably yes — but not in the way expected.**
 
-## The answer so far: no, not on this data
-All four approaches measured on **identical scaffold splits** of the same 305 TG2 molecules:
+On 631 TG2 molecules over 10 identical scaffold splits:
 
-| approach | TG2 AUROC | vs fingerprint RF (paired) |
+| model | AUROC | ECE | Brier |
+|---|---|---|---|
+| **random forest, tuned per seed** | **0.898 ± 0.057** | 0.180 | 0.125 |
+| XGBoost | 0.880 ± 0.066 | 0.148 | 0.128 |
+| 3-model ensemble | 0.878 ± 0.063 | 0.148 | **0.123** |
+| random forest, default | 0.872 ± 0.066 | 0.158 | 0.131 |
+| Qwen QLoRA fine-tune | 0.850 ± 0.058 | 0.206 | 0.182 |
+| Qwen zero-shot Jev readout | 0.651 ± 0.144 | 0.158 | 0.229 |
+
+**The fine-tuned LLM is significantly worse than the tuned random forest**: ΔAUROC −0.049,
+95% CI [−0.076, −0.021], p = 0.007, better on only 2 of 10 seeds. Fine-tuning itself works
+emphatically (+0.199 AUROC over zero-shot, 10/10 seeds, p = 0.001) — it just does not get there.
+
+## What is statistically established
+
+1. **Tuned fingerprint random forest is the best model** at AUROC 0.898, and the LLM does not reach it.
+2. **Fine-tuning works**: +0.199 AUROC over the zero-shot readout, every seed, p = 0.001.
+3. **Random splits on this dataset are invalid**: 38.6% of random-split test molecules have a
+   training molecule with an *identical* fingerprint ([`data.md`](data.md)).
+4. **Below 0.4 Tanimoto to the training set, fingerprint models rank at chance**
+   ([`generalization.md`](generalization.md)).
+5. **Post-hoc calibration fails under scaffold shift** for every fingerprint model, and the cause is
+   measurable — the fitted temperature swings from 0.4 to 3.7 across folds. A random-split control
+   confirms the mechanism ([`calibration.md`](calibration.md)).
+6. **Except for the fine-tuned LLM**, where temperature scaling does work (ΔECE −0.029, p = 0.010),
+   because it is overconfident in the same direction on every fold.
+7. **Conformal prediction holds its coverage under scaffold shift** (0.922 against a 0.90 target) by
+   widening its sets instead ([`uncertainty.md`](uncertainty.md)).
+8. **Abstaining on low confidence cuts error 15.5% → 6.5%; abstaining on low similarity does not**
+   help at all.
+
+## The hypothesis worth chasing
+
+On the 42 molecules with no training analog above 0.5 Tanimoto:
+
+| | novel only | all test |
 |---|---|---|
-| **Morgan fingerprint + random forest** | **0.843 ± 0.088** | — the bar |
-| Frozen Qwen embeddings + linear head | 0.839 ± 0.139 | −0.004, not significant |
-| Jev-style option-logit readout, no training | 0.694 ± 0.191 | −0.150, clearly worse |
-| LLM-as-Jev QLoRA fine-tune | 0.852 ± 0.128 | +0.009, **p = 0.80, not significant** |
+| random forest | 0.794 | 0.892 |
+| **Qwen zero-shot** | **0.807** | 0.663 |
+| Qwen QLoRA | **0.442** | 0.808 |
 
-On GDSC2 cancer drug response (unseen drugs, 20 seeds), adding drug names to the prompt looked promising at +0.053 Pearson, but at 20 seeds **p = 0.20 — not established** ([`qwen_probe.md`](qwen_probe.md)).
+The zero-shot LLM is the best model on unfamiliar chemistry and the worst overall. Fine-tuning
+reverses both — it appears to buy in-distribution accuracy by overwriting the general chemical prior.
+42 pooled molecules cannot establish this, but it is the sharpest open question here, and the
+LLM-as-Jev paper's KL anchors (omitted in this implementation) exist precisely to prevent that kind
+of forgetting.
 
-**Headline: on a few hundred molecules, a 9B LLM matches but does not beat Morgan fingerprints, however it is used.** This is a legitimate negative result and consistent with the wider literature on small-data cheminformatics.
+## Candidate screening
 
-## What *is* statistically established
-1. **Fine-tuning works.** QLoRA lifts Qwen from AUROC 0.694 to 0.852, better on **10/10 seeds**, p = 0.002 ([`jev_qlora.md`](jev_qlora.md)). The Jev-style training objective is sound; the limit is the data.
-2. **Qwen has genuine prior knowledge of TG2 chemistry.** With zero training it ranks potent above weak inhibitors at AUROC 0.69, well above chance.
-3. **Qwen features are slightly worse at within-drug ranking** on GDSC2 (−0.014 per-drug Spearman, p = 0.0002). Small, but real.
-4. **No method is well calibrated.** ECE is 0.14–0.24 everywhere, and fine-tuning does not improve it (p = 0.68). The worst split shows a fine-tuned model confidently wrong on an unfamiliar scaffold family.
-5. **GDSC2 random splits are misleading.** Predicting each drug's average response already gives Pearson 0.83; the honest setting is unseen drugs, where the best model reaches 0.50.
+2,414 approved drugs scored. **99.2% fall below the 0.4 Tanimoto applicability floor where the model
+ranks at chance**, so the nominal 35 hits are not candidates. One compound (telaprevir) survives
+every filter but the conformal one, and is documented as a probe of the model's chemotype bias
+rather than a drug candidate. Approved-drug repurposing is the wrong strategy for TG2 with this
+training set ([`candidates.md`](candidates.md)). Everything there is a computational hypothesis
+about an untested molecule.
 
-## The clearest opening for new work
-**Calibration.** It is the one unmet need across every method, and it is exactly what the professor's Jev reference is about: Jev's selling point is calibrated probabilities from its (undisclosed) RLCD training. Nothing tried here reproduces that. Concrete options: temperature scaling on a proper held-out set, ensembling over option orders and seeds, or conformal prediction for guaranteed coverage.
+## Where things stand
 
-Other directions, in rough order of expected value:
-1. **More data** — 305 molecules is the binding constraint. Merging ChEMBL TG2 bioactivity data (with careful assay filtering) would test whether the LLM scales better with data than the random forest does.
-2. **Multi-task transfer** — one adapter trained on GDSC2 + TG2 together, testing whether cancer drug-response data transfers to TG2 potency. This is where a shared LLM representation could plausibly beat per-task models.
-3. **Better experiment design** — leave-one-drug-out on GDSC2 (137 drugs) instead of random cold-drug folds; the current design cannot resolve effects smaller than ~0.05 Pearson or ~0.07 AUROC.
+| | |
+|---|---|
+| TG2 molecules | 631 (from 305), PubChem + ChEMBL, sources verified to agree |
+| Experiments | baselines, tuned baselines, frozen-embedding probe, zero-shot Jev readout, QLoRA fine-tune, calibration, generalization, uncertainty, screening |
+| Artifacts | 10 LoRA adapters (1.7 GB), per-seed predictions, 20 result tables, 4 figures |
+| Tests | 14 passing |
+| Git | 4 commits; nothing pushed |
+
+## Documents
+- [`report.md`](report.md) — the professor-facing write-up, with figures and references
+- [`data.md`](data.md) — provenance, unit validation, leakage audit. **Read before trusting a number**
+- [`baselines.md`](baselines.md) — fingerprint baselines, tuned and default
+- [`calibration.md`](calibration.md) — why post-hoc calibration fails, and where it doesn't
+- [`generalization.md`](generalization.md) — performance against chemical similarity
+- [`uncertainty.md`](uncertainty.md) — ensembles, conformal, selective prediction
+- [`candidates.md`](candidates.md) — screening methodology and the shortlist
+- [`setup.md`](setup.md), [`jev_research.md`](jev_research.md), [`jev_probe.md`](jev_probe.md),
+  [`jev_qlora.md`](jev_qlora.md), [`qwen_probe.md`](qwen_probe.md), [`research_plan.md`](research_plan.md)
 
 ## Open questions for the professor
-1. **TG2 IC50 units.** The source file gives bare numbers; µM is assumed, which sets the "potent" threshold at IC50 ≤ 1 µM. This changes label definitions but not any model comparison. Confirm against Wichka & Lai (CSBJ 2024).
-2. **Which "Jev"?** TypeSafe AI's Jev is closed-weights with no paper ([`jev_research.md`](jev_research.md)). The reproducible substitute used here is the published LLM-as-Jev method on Qwen. Confirm this is the intended direction.
-3. **Is a negative result acceptable** as a first-month outcome, framed as "fingerprint baselines remain hard to beat at this data scale, and here is what an LLM does and does not add"?
-
-## Caveats on everything above
-- Test folds are small (TG2: 24 ± 9 molecules; GDSC2 cold-drug: ~14 drugs). Per-seed spread is wide.
-- The TG2 classification and regression tasks are two views of the same 305 molecules, not independent evidence.
-- No hyperparameter tuning was done for any model; all use fixed sensible defaults.
-- The repo's own TG2 Active/Inactive labels were replaced with a potency threshold because they were 90% positive ([`baselines.md`](baselines.md)).
-
-## Reproducing everything
-```bash
-cd ~/projects/celiac-ai-research && source .venv/bin/activate
-bash scripts/download_data.sh                      # GDSC2 + TG2
-pytest                                             # 10 tests
-python scripts/run_baselines.py                    # baselines.md
-python scripts/embed_molecules.py                  # deterministic Qwen embeddings
-python scripts/run_qwen_probe.py                   # qwen_probe.md
-python scripts/run_jev_probe.py                    # jev_probe.md
-python scripts/run_jev_qlora.py                    # jev_qlora.md  (~72 min)
-```
-Git is initialized but **nothing is committed yet** — the user deferred the first commit.
+1. ~~TG2 IC50 units~~ — **settled**: µM, confirmed against the source paper.
+2. **Which "Jev"?** TypeSafe AI's model is closed-weights with no paper; the reproducible substitute
+   used here is the published LLM-as-Jev method on Qwen.
+3. **Is a negative result acceptable** as the month-1 outcome? The evidence is clean and the
+   methodology is sound; the headline is that fingerprints remain the better model at this data scale.
+4. **Which direction next** — extend the fine-tune, chase the novel-chemistry hypothesis, or move to
+   a chemically appropriate screening library? These are mutually exclusive at this pace.
