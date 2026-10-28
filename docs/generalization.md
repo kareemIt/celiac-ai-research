@@ -37,6 +37,15 @@ are reported instead.
 
 ## Strict novelty subset
 
+> **Superseded, 2026-10-28.** The table below pools predictions across overlapping test folds, which
+> inflates the zero-shot model specifically: its score for a molecule is read from a cache and is the
+> same number in every fold, so pooling reweights its molecules by how often they landed in a test
+> set. Redone one row per molecule in [`forgetting.md`](forgetting.md), the zero-shot advantage over
+> the random forest disappears (−0.019, 95% CI [−0.257, +0.192]) and holds only at cutoffs where the
+> subset contains one or three positive molecules. The QLoRA collapse survives that correction but
+> not a per-seed test. Read this section as the observation that prompted the follow-up, not as a
+> result.
+
 Restricting to test molecules with **no training analog above 0.5 Tanimoto** — 42 distinct molecules,
 51 predictions across seeds, 18% positive:
 

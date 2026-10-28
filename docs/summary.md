@@ -54,11 +54,14 @@ On the 42 molecules with no training analog above 0.5 Tanimoto:
 | **Qwen zero-shot** | **0.807** | 0.663 |
 | Qwen QLoRA | **0.442** | 0.808 |
 
-The zero-shot LLM is the best model on unfamiliar chemistry and the worst overall. Fine-tuning
-reverses both — it appears to buy in-distribution accuracy by overwriting the general chemical prior.
-42 pooled molecules cannot establish this, but it is the sharpest open question here, and the
-LLM-as-Jev paper's KL anchors (omitted in this implementation) exist precisely to prevent that kind
-of forgetting.
+**Both halves of that table were re-examined on 2026-10-28 and only one survived**
+([`forgetting.md`](forgetting.md)). Those are pooled predictions over overlapping folds; scored one
+row per molecule, the zero-shot model is *behind* the random forest (0.764 vs 0.782, difference
+−0.019, 95% CI [−0.257, +0.192]), and it leads only at cutoffs where the subset holds one or three
+positive molecules. The QLoRA collapse does survive the molecule-level bootstrap (−0.368 against the
+base model, CI [+0.013, +0.658] on the difference) but not a per-seed test (p = 0.72, 2/6 seeds).
+The live question is therefore narrower: does fine-tuning cost deep-novelty performance, and do the
+LLM-as-Jev KL anchors — omitted in this implementation — prevent it?
 
 ## Candidate screening
 
@@ -85,6 +88,7 @@ about an untested molecule.
 - [`baselines.md`](baselines.md) — fingerprint baselines, tuned and default
 - [`calibration.md`](calibration.md) — why post-hoc calibration fails, and where it doesn't
 - [`generalization.md`](generalization.md) — performance against chemical similarity
+- [`forgetting.md`](forgetting.md) — does fine-tuning destroy the base model's chemical prior?
 - [`uncertainty.md`](uncertainty.md) — ensembles, conformal, selective prediction
 - [`candidates.md`](candidates.md) — screening methodology and the shortlist
 - [`setup.md`](setup.md), [`jev_research.md`](jev_research.md), [`jev_probe.md`](jev_probe.md),
