@@ -1,0 +1,26 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# data, weights, outputs
+data/raw/
+data/processed/
+checkpoints/
+# track the per-seed result tables (small, and the record of every experiment); not logs or arrays
+results/*
+!results/*.csv
+results_v1_preaudit/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.gguf
+*.pkl
+*.joblib
+
+# secrets
+.env
+*.token
+.huggingface/
