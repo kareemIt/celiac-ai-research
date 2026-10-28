@@ -100,6 +100,7 @@ about an untested molecule.
 - [`calibration.md`](calibration.md) — why post-hoc calibration fails, and where it doesn't
 - [`generalization.md`](generalization.md) — performance against chemical similarity
 - [`forgetting.md`](forgetting.md) — does fine-tuning destroy the base model's chemical prior?
+- [`reproducibility.md`](reproducibility.md) — why two identical runs disagreed, and what fixed it
 - [`uncertainty.md`](uncertainty.md) — ensembles, conformal, selective prediction
 - [`candidates.md`](candidates.md) — screening methodology and the shortlist
 - [`setup.md`](setup.md), [`jev_research.md`](jev_research.md), [`jev_probe.md`](jev_probe.md),

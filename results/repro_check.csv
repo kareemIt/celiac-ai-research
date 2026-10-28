@@ -1,0 +1,3 @@
+run,vs,same_best_epoch,max_abs_dlogodds,max_abs_dcurve,max_abs_dadapter,d_auroc
+repro2,repro1,True,0.0,0.0,0.0,0.0
+repro3,repro1,True,0.0,0.0,0.0,0.0

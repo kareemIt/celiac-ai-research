@@ -7,11 +7,15 @@ right after the "Best answer: [" prefill. Option order is shuffled per example. 
 
 --kl adds the paper's KL anchors (src/models/jev_anchors.py) against the frozen base model, which is
 this same model with the LoRA adapter switched off. --kl 0 is the paper's ablation and takes the
-original cheap code path, so it reproduces the earlier run exactly. Valid and test log-odds are
-written out after every epoch, including epoch 0 (adapter at B=0, i.e. the untouched base model), so
-the forgetting curve can be read off afterwards without retraining.
+original cheap code path. Valid and test log-odds are written out after every epoch, including
+epoch 0 (adapter at B=0, i.e. the untouched base model), so the forgetting curve can be read off
+afterwards without retraining.
+
+--deterministic pins the knobs listed in src/models/determinism.py. It does not make the run
+reproducible by itself; scripts/check_determinism.py measures what is left.
 
 Usage: python scripts/run_jev_qlora.py [--seeds 10] [--epochs 3] [--data combined] [--kl 1.0]
+                                       [--deterministic] [--tag SUFFIX]
 """
 import argparse
 import os
@@ -39,6 +43,14 @@ from src.models.qwen import chat_prompt, load_qwen_4bit
 
 ACCUM, LR = 8, 1e-4  # LoRA lr from LLM-as-Jev
 
+# paged8bit was the original choice and is the one scripts/check_determinism.py found to be the
+# source of run-to-run variation; adamw keeps fp32 state and costs about 0.7 GiB more.
+OPTIMS = {
+    "paged8bit": lambda p: bnb.optim.PagedAdamW8bit(p, lr=LR),
+    "adamw8bit": lambda p: bnb.optim.AdamW8bit(p, lr=LR),
+    "adamw": lambda p: torch.optim.AdamW(p, lr=LR),
+}
+
 
 def option_logits(model, ids, digit_ids):
     """Logits of option numbers "1","2" at the token after the prefill. Only the last position is computed."""
@@ -58,23 +70,18 @@ def log_odds(model, prompts, digit_ids):
     return np.array(lo)
 
 
-def main(seeds, epochs, data="pubchem", kl=0.0):
-    tag = f"{data}_kl{kl:g}"
-    out_csv = f"results/jev_qlora_tg2_{tag}.csv"
-    preds_csv = f"results/jev_qlora_preds_{tag}.csv"
-    epochs_csv = f"results/jev_qlora_epochs_{tag}.csv"
+def gold_of(y_j, potent_first):
+    return 0 if (y_j == 1) == potent_first else 1  # index of the correct option number
 
-    d = tg2.load_raw()
-    table = tg2.combined("classification") if data == "combined" else tg2.classification(d)
-    names = d.groupby("smiles")["Compound_Name"].first().to_dict()  # ChEMBL rows have no name
-    smiles, y = table["smiles"].tolist(), table["y"].to_numpy()
 
-    model, tok = load_qwen_4bit()
-    model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
-    model.enable_input_require_grads()
-    model.config.use_cache = False
-    model = get_peft_model(model, LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05,
-                                             target_modules="all-linear", task_type="CAUSAL_LM"))
+def build_inputs(tok, smiles, names, y, kl):
+    """Tokenized prompts, and for kl > 0 the prompt + gold answer "k]" that the anchors need, plus
+    the window indices the anchor positions sit at.
+
+    With a sequence of P prompt tokens and A answer tokens, keeping the last A + n_prefill + 1
+    positions puts the reply start at 0, the decision node at n_prefill, and the position after the
+    closing bracket last -- the three positions LLM-as-Jev anchors.
+    """
     digit_ids = tok.convert_tokens_to_ids(["1", "2"])
 
     def ids(s, potent_first):
@@ -84,27 +91,83 @@ def main(seeds, epochs, data="pubchem", kl=0.0):
                    return_tensors="pt")["input_ids"].cuda()
 
     P = [(ids(s, True), ids(s, False)) for s in smiles]
-
-    # The anchors need positions the prompt alone does not reach, so training on kl > 0 runs on
-    # prompt + the gold answer "k]". Window indices below are derived in docs/forgetting.md.
     ans = {k: tok(f"{k}]", add_special_tokens=False)["input_ids"] for k in (1, 2)}
     A = len(ans[1])
     assert len(ans[2]) == A and [ans[k][0] for k in (1, 2)] == digit_ids, "option digit is not its own token"
     tpl = chat_prompt(tok, "probe")
     n_prefill = (len(tok(tpl + PREFILL, add_special_tokens=False)["input_ids"])
                  - len(tok(tpl, add_special_tokens=False)["input_ids"]))
-    KEEP = A + n_prefill + 1
-    DECISION, CONTEXT = n_prefill, [0, A + n_prefill]  # reply start and the position after "]"
-
-    def gold_of(j, potent_first):
-        return 0 if (y[j] == 1) == potent_first else 1  # index of the correct option number
 
     E = None
     if kl > 0:
         def ext(prompt_ids, gold):
-            tail = torch.tensor([ans[gold + 1]], device="cuda")
-            return torch.cat([prompt_ids, tail], dim=1)
-        E = [(ext(P[j][0], gold_of(j, True)), ext(P[j][1], gold_of(j, False))) for j in range(len(smiles))]
+            return torch.cat([prompt_ids, torch.tensor([ans[gold + 1]], device="cuda")], dim=1)
+        E = [(ext(P[j][0], gold_of(y[j], True)), ext(P[j][1], gold_of(y[j], False))) for j in range(len(smiles))]
+
+    return {"P": P, "E": E, "digit_ids": digit_ids, "keep": A + n_prefill + 1,
+            "decision": n_prefill, "context": [0, A + n_prefill]}
+
+
+def train_epoch(model, opt, params, tr, rng, ctx, y, kl):
+    """One pass over the training indices in a fresh random order. Returns the per-example losses,
+    which is what scripts/check_determinism.py compares between repeats."""
+    order = rng.permutation(tr)
+    losses = []
+    for i, j in enumerate(order):
+        pf = rng.random() < 0.5
+        gold = gold_of(y[j], pf)
+        target = torch.tensor([gold], device="cuda")
+        if kl > 0:
+            e = ctx["E"][j][0 if pf else 1]
+            lg = model(input_ids=e, logits_to_keep=ctx["keep"]).logits[0]
+            with torch.no_grad(), model.disable_adapter():
+                ref = model(input_ids=e, logits_to_keep=ctx["keep"]).logits[0]
+            loss = F.cross_entropy(lg[ctx["decision"], ctx["digit_ids"]].float()[None], target)
+            loss = (loss + kl * anchor_loss(lg, ref, ctx["decision"], ctx["context"], ctx["digit_ids"])) / ACCUM
+        else:
+            loss = F.cross_entropy(option_logits(model, ctx["P"][j][0 if pf else 1], ctx["digit_ids"])[None],
+                                   target) / ACCUM
+        loss.backward()
+        losses.append(loss.item() * ACCUM)
+        if (i + 1) % ACCUM == 0 or i == len(order) - 1:
+            torch.nn.utils.clip_grad_norm_(params, 1.0)
+            opt.step()
+            opt.zero_grad(set_to_none=True)
+    return np.array(losses)
+
+
+def load_trainable():
+    """Base model in 4-bit with a fresh LoRA adapter attached, set up for training."""
+    model, tok = load_qwen_4bit()
+    model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+    model.enable_input_require_grads()
+    model.config.use_cache = False
+    model = get_peft_model(model, LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05,
+                                             target_modules="all-linear", task_type="CAUSAL_LM"))
+    return model, tok
+
+
+def reset_adapter(model):
+    """Fresh adapter: B = 0, so training starts from the base model's own predictions."""
+    for m in model.modules():
+        if isinstance(m, LoraLayer):
+            m.reset_lora_parameters("default", True)
+
+
+def main(seeds, epochs, data="pubchem", kl=0.0, tag=None, optim="paged8bit"):
+    tag = tag or f"{data}_kl{kl:g}"
+    out_csv = f"results/jev_qlora_tg2_{tag}.csv"
+    preds_csv = f"results/jev_qlora_preds_{tag}.csv"
+    epochs_csv = f"results/jev_qlora_epochs_{tag}.csv"
+
+    d = tg2.load_raw()
+    table = tg2.combined("classification") if data == "combined" else tg2.classification(d)
+    names = d.groupby("smiles")["Compound_Name"].first().to_dict()  # ChEMBL rows have no name
+    smiles, y = table["smiles"].tolist(), table["y"].to_numpy()
+
+    model, tok = load_trainable()
+    ctx = build_inputs(tok, smiles, names, y, kl)
+    P, digit_ids = ctx["P"], ctx["digit_ids"]
 
     ckpt_dir = f"checkpoints/jev_qlora_{tag}"
     os.makedirs(ckpt_dir, exist_ok=True)
@@ -113,11 +176,9 @@ def main(seeds, epochs, data="pubchem", kl=0.0):
         tr, va, te = chem.scaffold_split(smiles, seed=seed)
         torch.manual_seed(seed)
         rng = np.random.default_rng(seed)
-        for m in model.modules():  # fresh adapter per seed: B=0 so training starts from the base model
-            if isinstance(m, LoraLayer):
-                m.reset_lora_parameters("default", True)
+        reset_adapter(model)
         params = [p for p in model.parameters() if p.requires_grad]
-        opt = bnb.optim.PagedAdamW8bit(params, lr=LR)
+        opt = OPTIMS[optim](params)
         torch.cuda.reset_peak_memory_stats()
         t0, best = time.perf_counter(), (np.inf, epochs - 1, None)
 
@@ -133,25 +194,7 @@ def main(seeds, epochs, data="pubchem", kl=0.0):
         model.train()
         snapshot(0)
         for epoch in range(epochs):
-            order = rng.permutation(tr)
-            for i, j in enumerate(order):
-                pf = rng.random() < 0.5
-                gold = gold_of(j, pf)
-                target = torch.tensor([gold], device="cuda")
-                if kl > 0:
-                    lg = model(input_ids=E[j][0 if pf else 1], logits_to_keep=KEEP).logits[0]
-                    with torch.no_grad(), model.disable_adapter():
-                        ref = model(input_ids=E[j][0 if pf else 1], logits_to_keep=KEEP).logits[0]
-                    loss = F.cross_entropy(lg[DECISION, digit_ids].float()[None], target)
-                    loss = (loss + kl * anchor_loss(lg, ref, DECISION, CONTEXT, digit_ids)) / ACCUM
-                else:
-                    loss = F.cross_entropy(option_logits(model, P[j][0 if pf else 1], digit_ids)[None],
-                                           target) / ACCUM
-                loss.backward()
-                if (i + 1) % ACCUM == 0 or i == len(order) - 1:
-                    torch.nn.utils.clip_grad_norm_(params, 1.0)
-                    opt.step()
-                    opt.zero_grad(set_to_none=True)
+            train_epoch(model, opt, params, tr, rng, ctx, y, kl)
             z_va = snapshot(epoch + 1)
             if len(va) >= 5:
                 vb = np.mean((y[va] - sigmoid(z_va)) ** 2)
@@ -203,5 +246,13 @@ if __name__ == "__main__":
     ap.add_argument("--epochs", type=int, default=3)
     ap.add_argument("--data", default="pubchem", choices=["pubchem", "combined"])
     ap.add_argument("--kl", type=float, default=0.0, help="KL-anchor strength; the paper's default is 1.0")
+    ap.add_argument("--deterministic", action="store_true")
+    ap.add_argument("--loose", action="store_true",
+                    help="with --deterministic, let nondeterministic kernels run instead of raising")
+    ap.add_argument("--tag", default=None, help="output suffix; defaults to {data}_kl{kl}")
+    ap.add_argument("--optim", default="paged8bit", choices=sorted(OPTIMS))
     a = ap.parse_args()
-    main(a.seeds, a.epochs, a.data, a.kl)
+    if a.deterministic:
+        from src.models import determinism
+        print("determinism:", determinism.enable(seed=0, strict=not a.loose), flush=True)
+    main(a.seeds, a.epochs, a.data, a.kl, a.tag, a.optim)
