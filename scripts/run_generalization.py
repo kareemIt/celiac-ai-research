@@ -114,7 +114,7 @@ def main(seeds, data):
     # 2. Strict novelty subset.
     print(f"\n## Strict novelty: test molecules with max Tanimoto < {NOVEL_CUTOFF}")
     nov = pred[pred.max_tanimoto < NOVEL_CUTOFF]
-    ref = nov[nov.model == "rf_tuned"]
+    ref = nov[nov.model == "rf"]
     print(f"  {len(ref)} of {len(pred[pred.model == 'rf'])} rf test predictions "
           f"({len(ref) / len(pred[pred.model == 'rf']):.0%}), covering {ref.smiles.nunique()} distinct "
           f"molecules, positive rate {ref.y.mean():.3f}")
