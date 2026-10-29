@@ -1,0 +1,28 @@
+section,set,exact,stereo_blind,n,max_tanimoto,mean_top5,shares_scaffold,property,zed1227,our_median,p5,p95,max_tanimoto_to_tg2,verdict,made,reason,rank,tg2_ic50_nM,fxiiia_ic50_nM,fold
+membership,TG2 IC50 set (631),True,True,631.0,,,,,,,,,,,,,,,,
+membership,kinetic set (219),False,False,219.0,,,,,,,,,,,,,,,,
+membership,TG2/FXIII-A paired (147),False,False,147.0,,,,,,,,,,,,,,,,
+membership,tgm1 labelled,False,False,92.0,,,,,,,,,,,,,,,,
+membership,tgm3 labelled,False,False,63.0,,,,,,,,,,,,,,,,
+membership,f13a1 labelled,False,False,196.0,,,,,,,,,,,,,,,,
+membership,tgm2_gp labelled,False,False,41.0,,,,,,,,,,,,,,,,
+similarity,TG2 IC50 set (631),,,,1.0,0.6465519666671753,True,,,,,,,,,,,,,
+similarity,kinetic set (219),,,,0.30188679695129395,0.2143767774105072,False,,,,,,,,,,,,,
+similarity,TG2/FXIII-A paired (147),,,,0.35766422748565674,0.2975449562072754,False,,,,,,,,,,,,,
+similarity,tgm1 labelled,,,,0.2800000011920929,0.19669808447360992,False,,,,,,,,,,,,,
+similarity,tgm3 labelled,,,,0.2800000011920929,0.18710404634475708,False,,,,,,,,,,,,,
+similarity,f13a1 labelled,,,,0.41803279519081116,0.36795133352279663,False,,,,,,,,,,,,,
+similarity,tgm2_gp labelled,,,,0.16326530277729034,0.14909763634204865,False,,,,,,,,,,,,,
+property,,,,,,,,mw,528.6100000000002,425.50700000000023,236.7645,880.4824999999998,,,,,,,,
+property,,,,,,,,clogp,1.380700000000002,2.4977,0.17900000000000071,4.246500000000004,,,,,,,,
+property,,,,,,,,tpsa,153.42000000000002,95.58000000000001,46.17,286.53999999999996,,,,,,,,
+property,,,,,,,,hbd,3.0,2.0,0.0,6.0,,,,,,,,
+property,,,,,,,,hba,7.0,5.0,2.0,11.0,,,,,,,,
+property,,,,,,,,rotatable,14.0,6.0,1.0,19.0,,,,,,,,
+domain,,,,,,,,,,,,,1.0,INSIDE,,,,,,
+prediction,,,,,,,,,,,,,,,False,see report,,,,
+comparison,,,,,,,,,,,,,,,,,1.0,14.000000000000005,35000.0,2499.999999999999
+comparison,,,,,,,,,,,,,,,,,2.0,62.000000000000064,66999.99999999993,1080.6451612903204
+comparison,,,,,,,,,,,,,,,,,3.0,54.00000000000007,21000.00000000001,388.8888888888886
+comparison,,,,,,,,,,,,,,,,,4.0,26.000000000000014,5690.000000000008,218.84615384615404
+comparison,,,,,,,,,,,,,,,,,5.0,14.000000000000005,2499.9999999999995,178.57142857142847

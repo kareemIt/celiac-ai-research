@@ -156,6 +156,7 @@ That discarded data was audited and tested ([`covalent.md`](covalent.md)):
 - [`screening_prep.md`](screening_prep.md) — TG2 data discovery, unit recovery and screening feasibility
 - [`experimental_plan.md`](experimental_plan.md) — FXIII-A selectivity evidence and a prospective study design
 - [`collaboration/`](collaboration/) — one-page summary, collaboration proposal and unsent outreach drafts
+- [`zed1227_analysis.md`](zed1227_analysis.md) — the clinical TG2 inhibitor as a reference point
 - [`reproducibility.md`](reproducibility.md) — why two identical runs disagreed, and what fixed it
 - [`uncertainty.md`](uncertainty.md) — ensembles, conformal, selective prediction
 - [`candidates.md`](candidates.md) — screening methodology and the shortlist
