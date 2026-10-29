@@ -1,0 +1,18 @@
+section,quantity,records,molecules,papers,no_units,scaffolds,between_paper_sd,within_paper_sd,already_labelled,median_max_tanimoto,below_0.5
+inventory,Ki,240.0,226.0,13.0,15.0,,,,,,
+inventory,Kinact,155.0,148.0,6.0,14.0,,,,,,
+inventory,Ratio,310.0,288.0,9.0,118.0,,,,,,
+inventory,k_off,71.0,67.0,1.0,0.0,,,,,,
+inventory,kon,71.0,67.0,1.0,71.0,,,,,,
+usable,kinact/Ki,192.0,174.0,6.0,,70.0,,,,,
+comparability,kinact/Ki,,,,,,0.49702244193035194,0.5717296544085809,,,
+warhead,acrylamide,,169.0,,,,,,,,
+warhead,chloroacetamide,,3.0,,,,,,,,
+warhead,epoxide,,0.0,,,,,,,,
+warhead,dihydroisoxazole,,0.0,,,,,,,,
+warhead,maleimide,,0.0,,,,,,,,
+warhead,vinyl sulfone,,0.0,,,,,,,,
+warhead,nitrile,,0.0,,,,,,,,
+mechanism,irreversible,,238.0,,,,,,,,
+mechanism,reversible,,14.0,,,,,,,,
+overlap,kinact/Ki,,159.0,,,,,,15.0,0.6623376607894897,7.0

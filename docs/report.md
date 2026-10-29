@@ -1,6 +1,6 @@
 # Can a local 9B language model help find TG2 inhibitors for celiac disease?
 
-**Month 1 research report — 2026-10-27**
+**Research report — 2026-10-27, revised 2026-10-29**
 All computation performed locally on one RTX 5070 Ti. No hosted model APIs, no cloud GPUs.
 
 ---
@@ -21,7 +21,39 @@ The question this project asks is narrow and answerable:
 A secondary question emerged from the data and turned out to matter more: **when should any of these
 models be trusted at all?**
 
-## 2. Dataset: 305 → 631 molecules
+---
+
+## Findings at a glance
+
+Every row is an experiment that was run to completion; the right-hand column says what the evidence
+licenses. **Demonstrated** means a measured effect with an interval that excludes the null.
+**Not established** means the experiment was run and did not support the claim — a result, not a
+gap. **Hypothesis** means it is consistent with the data and untested.
+
+| # | Finding | Status |
+|---|---|---|
+| 2 | Random splits leak: 38.6% of random-split test molecules have a training molecule with an identical fingerprint | **Demonstrated** |
+| 2 | Censored (`>`) measurements are informative negatives; recovering them grew the set 305 → 367 | **Demonstrated** |
+| 3 | A tuned fingerprint random forest beats the QLoRA-fine-tuned 9B LLM (ΔAUROC −0.049, 95% CI [−0.076, −0.021], p = 0.007) | **Demonstrated** |
+| 3 | Fine-tuning works, it just does not get there (+0.199 AUROC over zero-shot, 10/10 seeds) | **Demonstrated** |
+| 3 | QLoRA training made bit-exact; the cause was backward-pass kernel selection, not the quantized optimizer | **Demonstrated** |
+| 3 | KL anchors improve overall AUROC by 0.038 (p = 0.127) | **Not established** |
+| 4 | Below 0.4 Tanimoto to the training set, every model ranks at chance | **Demonstrated** |
+| 4 | Zero-shot Qwen beats the forest on unfamiliar chemistry | **Withdrawn** — a fold-pooling artefact |
+| 4 | Fine-tuning erodes the base model's prior on unfamiliar chemistry | **Not established** — did not reproduce deterministically |
+| 5 | Post-hoc calibration fails under scaffold shift for fingerprint models; the fitted temperature swings 0.4 → 3.7 | **Demonstrated** |
+| 5 | Conformal prediction holds coverage under scaffold shift (0.922 against a 0.90 target) | **Demonstrated** |
+| 5 | Abstaining on low confidence cuts error 15.5% → 6.5%; abstaining on low similarity does not | **Demonstrated** |
+| 6 | Most known TG2 inhibitors also hit FXIII-A: 103 of 132 with paired data | **Demonstrated** |
+| 6 | Selectivity can be predicted from structure | **Not established** — 0.974 scaffold-split collapses to 0.574 across papers |
+| 7 | Covalent efficiency (kinact/Ki) can be predicted across laboratories | **Not established** — 0.046 log gain over a constant, 95% CI [−0.101, +0.011] |
+| 7 | Within one warhead class, between-laboratory offset (0.50 log) rivals within-paper spread (0.57 log) | **Demonstrated** |
+| 8 | A covalent-mechanism model would work given one laboratory's consistently-assayed series | **Hypothesis** |
+
+Two results were caught as artefacts before being reported as findings, in §4 and §6. Both came
+from splits that were correct elsewhere in this project and wrong for the question being asked.
+
+## 2. Dataset validation and leakage
 
 | | molecules | source |
 |---|---|---|
@@ -44,7 +76,7 @@ Ki are not interchangeable without the substrate Km, which neither source report
 The practical gain is statistical power: test folds grew from 24 to 62 molecules and the standard
 deviation of test AUROC nearly halved. Detail: [`data.md`](data.md).
 
-## 3. Data validation and leakage corrections
+### Validation and leakage corrections
 
 **Three errors found, all fixed:**
 
@@ -69,7 +101,7 @@ identical training molecule, which is why random-split AUROC reaches 0.95 agains
 scaffold splits. Scaffold splits are sound but are not a novelty test — half their test molecules
 still have a close analog in training.
 
-## 4. Qwen versus traditional ML
+## 3. Qwen versus Random Forest
 
 All models on identical scaffold splits of the same 631 molecules.
 
@@ -113,46 +145,7 @@ Other established results:
 3-epoch schedule truncated training for half the runs and 0.850 is a *lower bound*. A longer
 schedule is the first item in §9; it would have to close a 0.049 gap to change the conclusion.
 
-## 5. Calibration and distribution shift
-
-Post-hoc calibration was expected to be the easy win. It is not available.
-
-**No calibration method significantly improved ECE, Brier or log loss on any model. Several made
-them significantly worse** (Platt on RF: ΔECE +0.046, p = 0.026).
-
-The cause is measurable — the fitted temperature is unidentifiable:
-
-| model | fitted temperature across seeds (1.0 = already calibrated) |
-|---|---|
-| random forest | 1.54 ± 0.94 (range 0.40 – 3.74) |
-| Qwen zero-shot | **31.2 ± 61.8** (range 0.34 – **148**) |
-
-A **random-split control** confirms the mechanism: there, temperature scaling is neutral
-(ΔECE −0.004) and the fitted temperature sits near 1.0. So the miscalibration is not a broken output
-layer, which is what temperature scaling repairs — it is **chemotype shift**. A model facing an
-unfamiliar scaffold is wrong about its own confidence in a way a *different* unfamiliar scaffold
-cannot predict.
-
-### The one exception: the fine-tuned LLM
-
-The QLoRA model is the single case where post-hoc calibration works, and it works clearly:
-
-| calibration | ECE | Brier | log loss | paired change |
-|---|---|---|---|---|
-| none | 0.206 | 0.182 | 0.569 | — |
-| **temperature** | 0.177 | 0.174 | 0.527 | ΔECE **−0.029 (p=0.010)**, Δlog loss **−0.042 (p=0.007)** |
-| isotonic | **0.139** | 0.168 | 0.871 | ΔECE **−0.067 (p<0.001)**, but log loss worsens |
-
-The fine-tuned model starts as the *worst-calibrated* model in the study (ECE 0.206) and is
-**systematically overconfident in the same direction on every fold** — fitted temperature 1.57 ±
-0.77, never wildly unstable like the zero-shot readout's 31 ± 62. That consistency is what makes the
-correction transfer. The fingerprint models, by contrast, are miscalibrated in *different directions*
-on different folds, so a single scalar fitted on one fold actively harms another.
-
-Even after calibration, QLoRA's ECE (0.177) remains worse than the uncalibrated random forest's
-(0.158). Detail: [`calibration.md`](calibration.md).
-
-## 6. Generalization and uncertainty
+## 4. Generalization to unfamiliar chemistry
 
 ### Where prediction stops working
 
@@ -271,7 +264,7 @@ them right while ranking them badly. Error rate and AUROC fail differently. The 
 **confidence decides whether to trust a prediction; similarity decides whether to make one.**
 Detail: [`uncertainty.md`](uncertainty.md).
 
-## 7. Candidate prioritization
+### Screening approved drugs: what the applicability limit rules out
 
 > **Everything below is a computational hypothesis about an untested molecule. Nothing has been
 > synthesized, assayed, or validated, and nothing here is a clinical recommendation.**
@@ -311,7 +304,46 @@ Nirmatrelvir (p = 0.655, 3/3 models, nitrile warhead) is the nearest miss, exclu
 **The honest conclusion is that approved-drug repurposing is the wrong strategy for TG2 with this
 training set.** Reporting the 35 nominal hits as candidates would have been easy and wrong.
 
-## 7b. Selectivity against Factor XIII-A
+## 5. Calibration and uncertainty
+
+Post-hoc calibration was expected to be the easy win. It is not available.
+
+**No calibration method significantly improved ECE, Brier or log loss on any model. Several made
+them significantly worse** (Platt on RF: ΔECE +0.046, p = 0.026).
+
+The cause is measurable — the fitted temperature is unidentifiable:
+
+| model | fitted temperature across seeds (1.0 = already calibrated) |
+|---|---|
+| random forest | 1.54 ± 0.94 (range 0.40 – 3.74) |
+| Qwen zero-shot | **31.2 ± 61.8** (range 0.34 – **148**) |
+
+A **random-split control** confirms the mechanism: there, temperature scaling is neutral
+(ΔECE −0.004) and the fitted temperature sits near 1.0. So the miscalibration is not a broken output
+layer, which is what temperature scaling repairs — it is **chemotype shift**. A model facing an
+unfamiliar scaffold is wrong about its own confidence in a way a *different* unfamiliar scaffold
+cannot predict.
+
+### The one exception: the fine-tuned LLM
+
+The QLoRA model is the single case where post-hoc calibration works, and it works clearly:
+
+| calibration | ECE | Brier | log loss | paired change |
+|---|---|---|---|---|
+| none | 0.206 | 0.182 | 0.569 | — |
+| **temperature** | 0.177 | 0.174 | 0.527 | ΔECE **−0.029 (p=0.010)**, Δlog loss **−0.042 (p=0.007)** |
+| isotonic | **0.139** | 0.168 | 0.871 | ΔECE **−0.067 (p<0.001)**, but log loss worsens |
+
+The fine-tuned model starts as the *worst-calibrated* model in the study (ECE 0.206) and is
+**systematically overconfident in the same direction on every fold** — fitted temperature 1.57 ±
+0.77, never wildly unstable like the zero-shot readout's 31 ± 62. That consistency is what makes the
+correction transfer. The fingerprint models, by contrast, are miscalibrated in *different directions*
+on different folds, so a single scalar fitted on one fold actively harms another.
+
+Even after calibration, QLoRA's ECE (0.177) remains worse than the uncalibrated random forest's
+(0.158). Detail: [`calibration.md`](calibration.md).
+
+## 6. Selectivity and FXIII-A cross-reactivity
 
 Celiac disease would mean chronic dosing in otherwise healthy people, so selectivity within the
 transglutaminase family is a safety gate rather than an optimization. FXIII-A crosslinks fibrin and
@@ -358,7 +390,59 @@ what was measured.
 irreversible inhibition. kinact/Ki cannot be merged into an IC50 label, but it is the natural basis
 for a covalent-mechanism model and is the largest piece of unexploited data in this dataset.
 
-## 8. Limitations
+## 7. Covalent inhibition mechanisms
+
+Most published TG2 inhibitors are covalent, and the IC50 filter used in §2 discards 990 of the
+1,583 TG2 records. This section asks whether that discarded kinetic data supports a mechanism
+model. Full detail in [`covalent.md`](covalent.md).
+
+**Three quantities, kept separate.** Ki is an affinity (nM), kinact a rate of bond formation
+(/min), and kinact/Ki a second-order rate constant (/M·s) — the efficiency measure covalent
+inhibitors are ranked by, and the only one comparable across compounds with different affinities.
+None is merged with the others, and none is mixed with an IC50 label.
+
+**288 molecules shrink to 174.** ChEMBL stores kinact/Ki under three unit conventions and 118 rows
+carry no unit at all. A unitless rate constant cannot be placed on a common scale, and inferring
+the convention from magnitude would be inventing data, so two entire papers (103 rows) are lost.
+What survives: **174 molecules, 70 Murcko scaffolds, 6 papers**, log₁₀(kinact/Ki) spanning 1.60 to
+5.00.
+
+**One warhead, which cuts both ways.** 169 of the 174 molecules are acrylamides. A model therefore
+cannot succeed by recognizing the reactive group — any signal must come from the recognition
+element, which makes this a cleaner structure–activity question than most covalent datasets. But it
+also means there is no mechanism contrast to classify: assays state irreversible inhibition for 238
+molecules and reversible for 14. **Mechanism classification was therefore not attempted.**
+
+**The label is partly a property of the laboratory.** Between-paper SD of medians is 0.50 log
+against a within-paper SD of 0.57 log, with each paper using a different substrate. A model trained
+on five papers and tested on the sixth must absorb an offset about as large as the signal.
+
+| model | n | RMSE (log) | 95% CI | mean within-paper Spearman |
+|---|---|---|---|---|
+| mean of training papers | 174 | 0.644 | [0.580, 0.707] | n/a (constant) |
+| molecular size alone | 174 | 0.644 | [0.569, 0.728] | 0.029 |
+| ridge on Morgan bits | 174 | 0.759 | [0.693, 0.826] | 0.110 |
+| random forest on Morgan bits | 174 | **0.598** | [0.537, 0.653] | 0.120 |
+
+Paired over the same molecules, **random forest − mean = −0.046 log RMSE, 95% CI [−0.101, +0.011],
+P(no better) = 0.054**. That is about 7% of the label's standard deviation, on an interval
+including zero, and the model ranks analogs within a new series at Spearman 0.120 — near chance on
+the task a prioritization would actually need. Ridge is *worse* than a constant, which is what a
+sparse high-dimensional featurization does when the training signal is weak.
+
+**And the scaffold split is optimistic here too.** Under scaffold splitting the same random forest
+reaches RMSE 0.489 against the constant's 0.660 — a quarter reduction that evaporates under the
+paper split. This is the same artefact as §6: scaffolds do not nest inside papers, so close analogs
+from one laboratory land on both sides of the fold. It is the second time in this project that a
+split correct for one question would have produced a publishable-looking number for another.
+
+**Verdict.** Covalent efficiency cannot be predicted across laboratories with this data, and
+mechanism cannot be classified at all. Why it fails is the finding: 174 molecules from 6 papers,
+different substrates, an inter-laboratory offset rivalling the chemical signal. The limitation is
+the data, not the model — a single size descriptor, ridge and a random forest all land within noise
+of predicting a constant.
+
+## 8. Limitations and future laboratory validation
 
 1. **631 molecules** remains small for a classification task with a 57% positive rate.
 2. **Scaffold splits are not novelty splits** — half of test molecules have a close training analog.
@@ -373,35 +457,7 @@ for a covalent-mechanism model and is the largest piece of unexploited data in t
    analysis — all decisive for a celiac therapeutic, which should ideally act in the intestinal lumen.
 9. p-values are uncorrected across many comparisons.
 
-## 9. Next experiments
-
-The KL-anchor line is closed (§6): reproducible, small, non-significant, and limited by the
-evaluation set rather than by GPU time. Priorities below are ordered by what would most change our
-ability to identify genuinely promising TG2 inhibitors.
-
-1. **Grow the low-similarity stratum — the binding constraint on everything.** Six positive molecules
-   below 0.5 Tanimoto is why every generalization interval in this report is uninformative. Related
-   transglutaminases in ChEMBL (TGM1, TGM3, FXIII-A) would add chemically distant actives at the cost
-   of mixing targets; a multi-task model with a target indicator is the principled version. CPU-cheap
-   and it makes every later experiment testable.
-2. **Screen a chemically appropriate library instead of approved drugs.** 99.2% of approved drugs fall
-   below the applicability floor (§7), so that avenue is exhausted. Analogs within 0.5–0.7 Tanimoto of
-   known actives, and covalent warhead fragment libraries — TG2 is a cysteine transglutaminase and its
-   established inhibitors are largely covalent — are where a hit could plausibly come from. This is a
-   change of direction and needs agreement first.
-3. **Model the mechanism, not just the label.** Separate reversible from irreversible inhibitors, and
-   warhead chemotype from scaffold. A model that cannot tell a Michael acceptor from a benzimidazole
-   is ranking the wrong feature.
-4. **Selectivity modelling** against FXIII-A and TG1/TG3, where ChEMBL has data. A TG2 inhibitor that
-   hits FXIII-A is a bleeding risk, so selectivity is a gating criterion for any shortlist, not a
-   refinement.
-5. **Extend the QLoRA schedule** if the LLM line continues. Validation chose the final epoch in 5 of
-   10 seeds, so 0.856 is a lower bound. Six epochs with early stopping would settle whether the
-   remaining gap to the random forest is real. Lower priority: the LLM has not beaten fingerprints at
-   this data scale in any configuration tried.
-6. **Conformal with a Mondrian split by scaffold cluster**, to give per-chemotype coverage.
-
-## 10. What would need laboratory collaboration
+### What would need laboratory collaboration
 
 Nothing in this project can be validated computationally. Specifically:
 
@@ -418,6 +474,45 @@ Nothing in this project can be validated computationally. Specifically:
 
 A realistic ask: a small assay of compounds chosen by the model from an appropriate library, with a
 negative control set matched on warhead chemistry.
+
+**On the covalent work specifically.** The §7 result rests on 174 molecules from 6 papers, and two
+of its folds hold 14 and 22 molecules. A negative result at that scale shows we cannot demonstrate
+a transferable signal; it does not show that none exists. The same caution applies to the §6
+selectivity result, whose paper-held-out folds average 15 molecules.
+
+## 9. Where this should go next
+
+Three of the five directions proposed at the end of the previous phase have since been tested and
+did not survive. They are listed first, because a next-steps section that silently drops its own
+failed recommendations is not a research record.
+
+| proposed | outcome |
+|---|---|
+| Grow the low-similarity stratum from TGM1/TGM3/FXIII-A | **Failed** (§6). They contribute 5, 1 and 31 molecules the TG2 set lacks; they are selectivity panels on compounds we already have. Guinea-pig TG2 adds 41 distant molecules and no actives. |
+| Selectivity modelling against FXIII-A | **Failed** (§6). 0.574 across papers, 95% CI [0.250, 0.864]. |
+| Model the mechanism, not just the label | **Failed** (§7). No mechanism contrast exists (169 of 174 share one warhead), and efficiency does not predict across laboratories. |
+
+What remains, ordered by value per unit of effort:
+
+1. **Recover the 103 unitless kinact/Ki rows from the primary literature.** Two entire papers were
+   dropped in §7 because ChEMBL stores their rate constants without units. Reading the units off the
+   source papers would grow the kinetic set by roughly half, to about 260 molecules across 8 papers.
+   It is manual, it is hours not weeks, and it is the only step that would materially change the
+   §7 conclusion.
+2. **Ask whether one laboratory's series is predictable.** Every negative result in §6 and §7 is
+   driven by between-paper variation. CHEMBL4219231 alone has 52 molecules on one substrate; a
+   within-series model there would test chemistry rather than inter-laboratory offset. It answers a
+   smaller question honestly instead of a larger one badly. *This is a hypothesis, not a plan — the
+   52-molecule fold is small enough that it may also fail, and that should be stated in advance.*
+3. **Screen a chemically appropriate library.** The one direction from the previous phase that has
+   *not* been tested and is not ruled out. 99.2% of approved drugs fall below the applicability
+   floor (§4), so repurposing is exhausted, but analogs within 0.5–0.7 Tanimoto of known actives sit
+   inside the validated domain. This is a change of direction and needs agreement first.
+4. **Conformal with a Mondrian split by scaffold cluster**, for per-chemotype coverage. Cheap,
+   incremental, and strengthens the one methodological result that has held up throughout (§5).
+5. **Extend the QLoRA schedule**, lowest priority. Validation chose the final epoch in 5 of 10
+   seeds, so 0.856 is a lower bound — but the LLM has not beaten fingerprints in any configuration
+   tried, and closing a 0.016 gap would not change the conclusion.
 
 ## References
 

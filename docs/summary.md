@@ -114,6 +114,25 @@ rather than a drug candidate. Approved-drug repurposing is the wrong strategy fo
 training set ([`candidates.md`](candidates.md)). Everything there is a computational hypothesis
 about an untested molecule.
 
+## Covalent mechanism: the last experiment
+
+Most published TG2 inhibitors are covalent, and the IC50 filter discards 990 of 1,583 TG2 records.
+That discarded data was audited and tested ([`covalent.md`](covalent.md)):
+
+- **kinact, Ki and kinact/Ki are three different quantities** and are kept separate from each other
+  and from the IC50 labels. Only kinact/Ki is comparable across compounds.
+- **288 molecules shrink to 174** across 6 papers and 70 scaffolds: ChEMBL stores the rate constant
+  under three unit conventions and 118 rows carry none, losing two entire papers.
+- **169 of 174 molecules share one warhead** (acrylamide). A model cannot be keying on the reactive
+  group — but there is also no mechanism contrast to classify, so mechanism classification was not
+  attempted.
+- **Covalent efficiency does not predict across laboratories.** Random forest beats predicting a
+  constant by 0.046 log RMSE, 95% CI [-0.101, +0.011], and ranks within a new paper at Spearman
+  0.120. The between-paper offset (0.50 log) rivals the within-paper spread (0.57 log).
+- **The scaffold split was optimistic here too** (RMSE 0.489 against 0.598 across papers) — the
+  second time in this project that a split correct for one question would have produced a
+  publishable-looking number for another.
+
 ## Where things stand
 
 | | |
@@ -121,8 +140,8 @@ about an untested molecule.
 | TG2 molecules | 631 (from 305), PubChem + ChEMBL, sources verified to agree |
 | Experiments | baselines, tuned baselines, frozen-embedding probe, zero-shot Jev readout, QLoRA fine-tune, calibration, generalization, uncertainty, screening |
 | Artifacts | 30 LoRA adapters (5.1 GB), per-seed and per-epoch predictions, 31 result tables, 5 figures |
-| Tests | 25 passing |
-| Git | 9 commits; nothing pushed |
+| Tests | 27 passing |
+| Git | 10 commits; nothing pushed |
 
 ## Documents
 - [`report.md`](report.md) — the professor-facing write-up, with figures and references
@@ -132,6 +151,7 @@ about an untested molecule.
 - [`generalization.md`](generalization.md) — performance against chemical similarity
 - [`forgetting.md`](forgetting.md) — does fine-tuning destroy the base model's chemical prior?
 - [`selectivity.md`](selectivity.md) — TG2 against FXIII-A: can we predict selectivity? **No**
+- [`covalent.md`](covalent.md) — kinact/Ki: can we predict covalent efficiency? **Not across labs**
 - [`reproducibility.md`](reproducibility.md) — why two identical runs disagreed, and what fixed it
 - [`uncertainty.md`](uncertainty.md) — ensembles, conformal, selective prediction
 - [`candidates.md`](candidates.md) — screening methodology and the shortlist
