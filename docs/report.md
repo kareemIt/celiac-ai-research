@@ -311,6 +311,53 @@ Nirmatrelvir (p = 0.655, 3/3 models, nitrile warhead) is the nearest miss, exclu
 **The honest conclusion is that approved-drug repurposing is the wrong strategy for TG2 with this
 training set.** Reporting the 35 nominal hits as candidates would have been easy and wrong.
 
+## 7b. Selectivity against Factor XIII-A
+
+Celiac disease would mean chronic dosing in otherwise healthy people, so selectivity within the
+transglutaminase family is a safety gate rather than an optimization. FXIII-A crosslinks fibrin and
+its inhibition causes bleeding. Full method and tables in [`selectivity.md`](selectivity.md).
+
+**The family data cannot expand our chemical coverage.** TGM1, TGM3 and FXIII-A add 5, 1 and 31
+molecules respectively that the TG2 set does not already contain — they are selectivity panels run
+on compounds we have, and 51 of TGM1's 53 Murcko scaffolds are already present. The guinea-pig TG2
+ortholog is the only genuinely distant chemistry available (41 molecules, 32 below 0.5 Tanimoto,
+only 2 of 18 scaffolds shared), and every one of its compounds is inactive (IC50 2.1–74 uM). The
+six-positive novel stratum that limits §6 therefore cannot be grown from these sources.
+
+**Most known TG2 inhibitors are not selective.** 165 molecules carry both a TG2 and an FXIII-A
+measurement; 103 of them inhibit both at 1 uM and only 29 are TG2-potent and FXIII-A-clean. That is
+a measured property of the published chemical space, and a caution about the whole covalent TG2
+literature.
+
+**We cannot predict which ones are selective.**
+
+| task | molecules | positives | AUROC | 95% CI |
+|---|---|---|---|---|
+| TG2 potency | 432 | 234 | 0.866 | [0.828, 0.900] |
+| FXIII-A potency | 118 | 79 | 0.948 | [0.892, 0.989] |
+| selectivity, scaffold split | 71 | 17 | 0.974 | [0.917, 1.000] |
+| **selectivity, whole papers held out** | 15 | 9 | **0.574** | **[0.250, 0.864]** |
+| selectivity ranked by predicted TG2 potency | 134 | 20 | 0.454 | [0.329, 0.581] |
+
+The 0.974 is an artefact and is reported here only because catching it is the result. Per-seed
+AUROC of 0.998 ± 0.006 on 17 positives is not a plausible measurement; 11 of the 29 selective
+molecules come from a single paper, and only 3 of the 98 scaffolds in the paired set appear in both
+classes. Scaffold splitting — correct everywhere else in this report — cannot separate papers when
+one lab's series spans several scaffolds, so the model was free to classify provenance. Holding out
+whole documents collapses it by 0.40, onto an interval that straddles chance in both directions.
+Adding the FXIII-A model's own prediction as a feature changed nothing (0.901 to 0.911, and that is
+an upper bound, since the feature was fitted on the same molecules).
+
+**Consequence: no selectivity-aware shortlist.** Phase 4 of this work was conditional on the models
+supporting it, and they do not. A ranking by predicted TG2 potency carries no selectivity
+information at all (0.454), so attaching a selectivity column to a candidate list would misstate
+what was measured.
+
+**One asset remains unused.** 286 TG2 molecules carry a kinact/Ki value — comparable in size to the
+302 potent molecules the project trains on — and 238 come from assays explicitly describing
+irreversible inhibition. kinact/Ki cannot be merged into an IC50 label, but it is the natural basis
+for a covalent-mechanism model and is the largest piece of unexploited data in this dataset.
+
 ## 8. Limitations
 
 1. **631 molecules** remains small for a classification task with a 57% positive rate.

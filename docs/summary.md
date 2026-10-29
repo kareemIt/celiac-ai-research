@@ -80,6 +80,31 @@ monotone decline that motivated the hypothesis did not survive deterministic rep
 **Random forest remains the stronger baseline** (0.872 +/- 0.066 vs 0.856 +/- 0.093).
 KL experiments are stopped: the limit is 42 novel molecules with 6 positives, not GPU time.
 
+## Selectivity, and why there is still no shortlist
+
+A TG2 inhibitor for celiac disease is taken chronically by otherwise healthy people, and Factor
+XIII-A — which crosslinks fibrin — is the bleeding-risk antitarget. Four human transglutaminases
+plus the guinea-pig TG2 ortholog were pulled from ChEMBL and audited without being merged
+([`selectivity.md`](selectivity.md)):
+
+- **The data cannot be expanded where it matters.** TGM1 contributes 5 molecules the TG2 set does
+  not already have, TGM3 contributes 1, FXIII-A 31. They are selectivity panels on the same
+  compounds, not new chemistry: 51 of TGM1's 53 scaffolds are already present. Guinea-pig TG2 is the
+  one real source of distant chemistry (41 molecules, 32 below 0.5 Tanimoto) and **contains no
+  actives** — IC50 2.1 to 74 uM. The previous phase's recommendation to grow the novel stratum this
+  way is withdrawn.
+- **TGM1 and TGM3 are not modellable**: 5 and 1 potent molecules respectively.
+- **Cross-reactivity is the norm.** Of the 132 TG2-potent molecules with paired FXIII-A data, 103
+  also inhibit FXIII-A at 1 uM and only 29 are clean.
+- **Selectivity cannot be predicted.** A scaffold-split random forest scored 0.974 on the selective
+  class, which was caught as an artefact rather than reported: 11 of the 29 selective molecules come
+  from one paper and only 3 of 98 scaffolds appear in both classes. Holding out whole papers instead
+  of whole scaffolds, AUROC falls to **0.574, 95% CI [0.250, 0.864]** — chance.
+- **Ranking by predicted TG2 potency says nothing about selectivity** (AUROC 0.454).
+
+No selectivity-aware shortlist was produced, because producing one would imply a safety signal the
+models do not have.
+
 ## Candidate screening
 
 2,414 approved drugs scored. **99.2% fall below the 0.4 Tanimoto applicability floor where the model
@@ -96,8 +121,8 @@ about an untested molecule.
 | TG2 molecules | 631 (from 305), PubChem + ChEMBL, sources verified to agree |
 | Experiments | baselines, tuned baselines, frozen-embedding probe, zero-shot Jev readout, QLoRA fine-tune, calibration, generalization, uncertainty, screening |
 | Artifacts | 30 LoRA adapters (5.1 GB), per-seed and per-epoch predictions, 31 result tables, 5 figures |
-| Tests | 19 passing |
-| Git | 8 commits; nothing pushed |
+| Tests | 25 passing |
+| Git | 9 commits; nothing pushed |
 
 ## Documents
 - [`report.md`](report.md) — the professor-facing write-up, with figures and references
@@ -106,6 +131,7 @@ about an untested molecule.
 - [`calibration.md`](calibration.md) — why post-hoc calibration fails, and where it doesn't
 - [`generalization.md`](generalization.md) — performance against chemical similarity
 - [`forgetting.md`](forgetting.md) — does fine-tuning destroy the base model's chemical prior?
+- [`selectivity.md`](selectivity.md) — TG2 against FXIII-A: can we predict selectivity? **No**
 - [`reproducibility.md`](reproducibility.md) — why two identical runs disagreed, and what fixed it
 - [`uncertainty.md`](uncertainty.md) — ensembles, conformal, selective prediction
 - [`candidates.md`](candidates.md) — screening methodology and the shortlist
