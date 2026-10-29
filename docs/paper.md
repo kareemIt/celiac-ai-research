@@ -38,8 +38,9 @@ TG2-potent molecules with paired data also inhibit Factor XIII-A at 1 µM), that
 family cannot expand the dataset where it is weakest, and that covalent inhibition efficiency
 (kinact/Ki) does not predict across laboratories (−0.046 log RMSE against a constant predictor, 95%
 CI [−0.101, +0.011]). We then test three of the four failures on an independent target, CDK2 (2,646 molecules, 351
-publications, chemically unrelated to TG2). All three reproduce in direction and mechanism while
-differing in magnitude. Publication-level confounding reproduces most strongly, costing more than
+publications, chemically unrelated to TG2) and again on MAO-B (5,840 molecules, 586 publications).
+All three reproduce in direction and mechanism while differing in magnitude, and both independent
+targets agree that the publication split costs more than the scaffold split. Publication-level confounding reproduces most strongly, costing more than
 scaffold splitting (AUROC 0.898 → 0.830) on a large, diverse dataset whose positives are spread
 across hundreds of papers — contrary to our own pre-registered prediction that it would not appear
 there. The second target also corrects us: TG2's finding that models rank at chance below 0.4
@@ -546,7 +547,7 @@ under the publication split, for the same reason as §5.7. This is the second oc
 project on which a split that is correct for one question would have produced a publishable-looking
 number for another.
 
-### 5.9 Independent validation on CDK2 — *three failures reproduce, one claim is corrected*
+### 5.9 Independent validation on CDK2 and MAO-B — *three failures reproduce, one claim is corrected*
 
 A single target cannot distinguish "this is how small bioactivity datasets behave" from "this is how
 the TG2 dataset behaves". We therefore repeated the diagnostics on an independent target. Five
@@ -596,10 +597,26 @@ counted in every fold it appeared in. The artefact is general; it is dangerous s
 fixed model is compared against a refitted one, which is the comparison every "LLM versus classical
 baseline" study performs.
 
+**A third target tests whether the ordering is stable.** MAO-B (CHEMBL2039) is larger again
+(5,840 molecules, 586 publications, 36% positive) and a different enzyme class once more, a
+flavin-containing oxidase. Its pattern matches: random → scaffold −0.059, scaffold → paper a
+further −0.076 (RF AUROC 0.923 → 0.865 → 0.789, no interval overlapping the next), with **122.2 of
+586 publications straddling a scaffold split on average**, and 8.9% of its random-split test
+molecules fingerprint-identical to a training molecule. On both independent targets the publication penalty
+exceeds the scaffold penalty — 2.3× on CDK2, 1.3× on MAO-B. Two datasets differing in size, enzyme
+class, class balance and publication count agree that the split which matters most is the one
+rarely reported.
+
+One detail of the CDK2 result does not reproduce: calibration degrades monotonically with split
+severity on CDK2 (ECE 0.027 → 0.042 → 0.092) but not on MAO-B, whose paper split (0.035) is better
+calibrated than its scaffold split (0.050). We offer no mechanism and do not speculate.
+
 The novelty result is the one that corrects us. Reliability declines with chemical distance on both
 targets (CDK2: 0.739 → 0.915 across similarity bins), but TG2's floor does not transfer: in the
 below-0.4 bin CDK2 scores 0.739 on 799 molecules at 39.7% positive — a large, balanced bin rather
-than a small-sample artefact. §5.6 has been qualified accordingly.
+than a small-sample artefact — and MAO-B scores 0.622 on 704 molecules. Three targets give three
+different floors with the same qualitative trend, so no fixed similarity threshold should be
+carried between datasets. §5.6 has been qualified accordingly.
 
 ---
 
@@ -632,11 +649,12 @@ publication correlated with the chemical series. A scaffold split, the field's s
 leakage, is powerless against this because scaffolds do not nest within publications: one
 laboratory's series spans several scaffolds, so holding out a scaffold leaves the same laboratory on
 both sides of the fold. We initially expected this to be a hazard of datasets assembled from a handful of papers, which
-describes most selectivity panels and most kinetic datasets. **The CDK2 validation (§5.9) refuted
-that:** the effect appeared on 2,646 molecules drawn from 351 publications, none holding more than
-9% of the positives, and there it exceeded the scaffold effect (−0.068 against −0.030). On the
-evidence of two independent targets we suggest a publication-held-out split should be reported
-alongside the scaffold split as a matter of course, not only for small panels.
+describes most selectivity panels and most kinetic datasets. **The CDK2 and MAO-B validations (§5.9) refuted
+that:** the effect appeared on 2,646 molecules from 351 publications and on 5,840 from 586, in
+neither case with a dominant paper, and on both it exceeded the scaffold effect (−0.068 against
+−0.030, and −0.076 against −0.059). On the evidence of three targets spanning three enzyme classes
+we suggest a publication-held-out split should be reported alongside the scaffold split as a matter
+of course, not only for small panels.
 
 A general caution follows from the pattern rather than from any single case. In three of the four
 instances, the *erroneous* protocol produced the more publishable number: 0.95 instead of 0.87,
@@ -685,9 +703,10 @@ chemistry or the statistics would have revealed it.
 
 ## 8. Limitations
 
-**Two targets, not a survey.** The core findings come from one protein, one disease and 631
-molecules, with three of the four failures retested on CDK2 (§5.9). Two targets show a failure is
-not unique to TG2; they do not establish a general law. The magnitudes differ substantially between
+**Three targets, not a survey.** The core findings come from one protein, one disease and 631
+molecules, with three of the four failures retested on CDK2 and MAO-B (§5.9). Three targets show a
+failure is not unique to TG2; they do not establish a general law, and all three are human enzymes
+drawn from ChEMBL through one curation pipeline. The magnitudes differ substantially between
 them — 38.6% against 7.3% identical fingerprints, chance against AUROC 0.739 below 0.4 Tanimoto —
 so the mechanisms appear transferable while the numbers plainly are not. Nondeterminism remains a
 single-target observation, as the CDK2 phase ran no GPU training.
@@ -735,9 +754,11 @@ question answered honestly instead of a larger one answered badly. We state in a
 52-molecule fold may also fail, and that this should not be reported as a surprise if it does.
 
 **Independent datasets — begun, not finished.** Three of the four checks have now been repeated on
-CDK2 (§5.9) and all three reproduced. Two further steps remain. MAO-B is pre-screened and ready
-(5,859 molecules, 209 publications, positives spread even more evenly than CDK2's); a third target
-would show whether the *ordering* of the failure magnitudes is stable or incidental. And the
+CDK2 (§5.9) and all three reproduced. MAO-B has since been added as a third target and agrees
+with CDK2 on the ordering. What remains is a target from a *different data source*: all three are
+ChEMBL records shaped by one curation pipeline, so a dataset curated elsewhere would test whether
+publication confounding is a property of the literature or partly of ChEMBL's document attribution.
+And the
 nondeterminism check has still been run only once, on one GPU and one model family — the cheapest
 way to generalise it is to repeat the identical-configuration comparison on any other quantized
 fine-tune.
@@ -772,8 +793,8 @@ substantially improves on zero-shot (+0.199, 10/10 seeds); below 0.4 Tanimoto al
 (0.922 against 0.90); confidence-based abstention cuts error 15.5% → 6.5%; 103 of 132 TG2-potent
 molecules with paired data also inhibit FXIII-A; between-publication offset in kinact/Ki (0.50 log)
 rivals within-publication spread (0.57 log); QLoRA training can be made bit-exact, and the cause of
-its nondeterminism is backward-pass kernel selection; on CDK2, holding out whole publications costs
-more AUROC than scaffold splitting (0.898 → 0.830, non-overlapping intervals).
+its nondeterminism is backward-pass kernel selection; on CDK2 and MAO-B, holding out whole publications costs
+more AUROC than scaffold splitting (0.898 → 0.830 and 0.865 → 0.789, non-overlapping intervals).
 
 **Inconclusive:** KL anchors improve overall AUROC by 0.038 (p = 0.127); they change novel-chemistry
 AUROC by +0.035 (95% CI [−0.107, +0.225]); selectivity is predictable across publications (0.574,
@@ -790,7 +811,8 @@ On literature-derived bioactivity datasets, the evaluation protocol determined t
 often than the model did. We document four mechanistically distinct instances on TG2, each with a
 measured before-and-after effect, two of which were caught only after being written down as
 findings; three of the four erroneous protocols produced the more attractive number. Three of the
-four then reproduced on an independent target of different size, chemistry and provenance structure.
+four then reproduced on two independent targets of different size, chemistry and provenance
+structure, which also agree on which failure is largest.
 
 The second target also constrains the claim in both directions. Publication-level confounding proved
 more general than we predicted, appearing on a 351-publication dataset and there exceeding the
@@ -886,7 +908,8 @@ cuDNN 9.24), transformers 5.21.0, peft 0.21.2, bitsandbytes 0.50.2, NumPy 2.5.4.
 | Selectivity | `python scripts/run_selectivity.py` | CPU, ~1 min |
 | Covalent audit and model | `python scripts/audit_covalent.py`, `scripts/run_covalent.py` | CPU, ~1 min |
 | Second-target selection | `python scripts/audit_candidate_targets.py` | network + CPU, ~25 min |
-| Second-target validation | `python scripts/run_second_target.py` | CPU, ~3 min |
+| Second-target validation | `python scripts/run_second_target.py --target cdk2` | CPU, ~3 min |
+| Third-target validation | `python scripts/run_second_target.py --target maob` | CPU, ~5 min |
 
 Supporting documentation: `data.md` (provenance and validation), `baselines.md`,
 `calibration.md`, `generalization.md`, `uncertainty.md`, `forgetting.md` (KL anchors),

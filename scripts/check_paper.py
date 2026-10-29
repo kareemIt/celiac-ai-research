@@ -74,17 +74,23 @@ def claims():
     out.append(("covalent acrylamides",
                 a[(a.section == "warhead") & (a.quantity == "acrylamide")].molecules.iloc[0], 0))
 
-    s2 = pd.read_csv("results/second_target_splits.csv")
-    rf2 = s2[s2.model == "rf"].set_index("split")
-    for k in ("random", "scaffold", "paper"):
-        out.append((f"CDK2 {k}-split RF AUROC", rf2.loc[k].auroc, 3))
-        out.append((f"CDK2 {k}-split ECE", rf2.loc[k].ece, 3))
-    lk = pd.read_csv("results/second_target_leakage.csv").set_index("split")
-    out.append(("CDK2 scaffold shared papers", lk.loc["scaffold"].shared_papers, 1))
-    out.append(("CDK2 random identical frac", lk.loc["random"].frac_identical * 100, 1))
-    nv = pd.read_csv("results/second_target_novelty.csv").set_index("tanimoto_bin")
-    out.append(("CDK2 AUROC below 0.4 Tanimoto", nv.loc["0.0-0.4"].auroc, 3))
-    out.append(("CDK2 molecules below 0.4", nv.loc["0.0-0.4"].molecules, 0))
+    for tgt, label in (("cdk2", "CDK2"), ("maob", "MAO-B")):
+        s2 = pd.read_csv(f"results/second_target_{tgt}_splits.csv")
+        rf2 = s2[s2.model == "rf"].set_index("split")
+        for k in ("random", "scaffold", "paper"):
+            out.append((f"{label} {k}-split RF AUROC", rf2.loc[k].auroc, 3))
+            out.append((f"{label} {k}-split ECE", rf2.loc[k].ece, 3))
+        lk = pd.read_csv(f"results/second_target_{tgt}_leakage.csv").set_index("split")
+        out.append((f"{label} scaffold shared papers", lk.loc["scaffold"].shared_papers, 1))
+        out.append((f"{label} random identical frac", lk.loc["random"].frac_identical * 100, 1))
+        nv = pd.read_csv(f"results/second_target_{tgt}_novelty.csv").set_index("tanimoto_bin")
+        out.append((f"{label} AUROC below 0.4 Tanimoto", nv.loc["0.0-0.4"].auroc, 3))
+        out.append((f"{label} molecules below 0.4", nv.loc["0.0-0.4"].molecules, 0))
+        # The split penalties are what the argument rests on, so check them, not just the levels.
+        out.append((f"{label} random->scaffold penalty",
+                    rf2.loc["scaffold"].auroc - rf2.loc["random"].auroc, 3))
+        out.append((f"{label} scaffold->paper penalty",
+                    rf2.loc["paper"].auroc - rf2.loc["scaffold"].auroc, 3))
 
     f = pd.read_csv("results/tg_family_audit.csv")
     pairs = f[f.section == "pairs"].set_index("target")

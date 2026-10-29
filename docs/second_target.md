@@ -153,19 +153,95 @@ been qualified accordingly.** The transferable statement is the weaker one: pred
 declines with chemical distance from the training set, and where it reaches chance is a property of
 the individual dataset that must be measured, not assumed.
 
+## Phase 3b — a third target: MAO-B
+
+CDK2 answered whether a failure reproduces. A third target answers whether the *ordering* of the
+failures is stable or incidental. MAO-B (CHEMBL2039) was the pre-screened second choice: more
+publications than CDK2 (586 against 351), positives spread even more evenly (largest paper 3%), a
+different enzyme class again (flavin-containing oxidase, small aromatics and propargylamines), and
+a different class balance (36% positive against CDK2's 53%).
+
+Provenance was clean under the rules already in place: of 8,686 IC50 records in nM, 8,632 are
+binding assays, with 39 ADMET and 15 toxicity rows excluded by the `assay_type` filter introduced
+for CDK2 — and visibly worth having, since those rows run at medians of 3,200 and 14,300 nM against
+1,580 for the binding assays. A further 470 rows flagged "outside typical range" and 26 flagged as
+potential transcription errors are dropped. All 17,928 records are *Homo sapiens*. Final dataset:
+**5,840 molecules, 2,108 potent (36%), 586 publications.**
+
+| split | shared scaffolds | shared papers | mean max Tanimoto | identical fp | RF AUROC | 95% CI | ECE |
+|---|---|---|---|---|---|---|---|
+| random | 252.5 | 231.0 | 0.775 | 8.9% | 0.923 | [0.915, 0.932] | 0.029 |
+| scaffold | 0.0 | 122.2 | 0.651 | 1.7% | 0.865 | [0.854, 0.876] | 0.050 |
+| **paper** | 40.8 | **0.0** | 0.547 | 3.3% | **0.789** | [0.775, 0.803] | 0.035 |
+
+Random → scaffold costs **−0.059**; scaffold → paper a further **−0.076**. No interval overlaps the
+next. A scaffold split again leaves a large number of publications straddling the fold — **122 of
+586** — which is the same mechanism seen on CDK2, at a larger dataset size.
+
+Novelty curve under the paper split, and this one is cleanly monotone:
+
+| max Tanimoto | molecules | % positive | AUROC |
+|---|---|---|---|
+| 0.0–0.4 | 704 | 36.9% | **0.622** |
+| 0.4–0.5 | 764 | 24.2% | 0.719 |
+| 0.5–0.6 | 939 | 32.6% | 0.777 |
+| 0.6–0.7 | 754 | 38.6% | 0.795 |
+| > 0.7 | 814 | 44.0% | 0.894 |
+
+The pooling artefact reproduces at the same mild level as CDK2: molecules recur 1.4× and the
+interval narrows by **15%**.
+
+## Three targets side by side
+
+| | TG2 | CDK2 | MAO-B |
+|---|---|---|---|
+| Molecules | 631 | 2,646 | 5,840 |
+| Positive | 48% | 53% | 36% |
+| Publications | 17 (ChEMBL side) | 351 | 586 |
+| Enzyme class | cysteine transferase | protein kinase | flavin oxidase |
+| Identical fingerprints, random split | **38.6%** | 7.3% | 8.9% |
+| random → scaffold | ≈ −0.08 | −0.030 | −0.059 |
+| **scaffold → paper** | 0.974 → 0.574 (selectivity) | **−0.068** | **−0.076** |
+| Publications straddling a scaffold split | — | 69.2 | 122.2 |
+| AUROC below 0.4 Tanimoto | ≈ chance | 0.739 | 0.622 |
+| Pooling: interval narrowing | severe (cached, 10×) | 18% (1.6×) | 15% (1.4×) |
+
+### What the third target settles
+
+**The ordering is stable.** On both independent targets the publication penalty exceeds the
+scaffold penalty — by 2.3× on CDK2 and 1.3× on MAO-B. Two targets differing in size, enzyme class,
+class balance and publication count agree that *the split which matters most is the one almost
+nobody reports*. This is now the best-supported claim in the project.
+
+**The magnitudes are not stable, and the direction of their variation is informative.** Random-split
+leakage costs 0.030 on CDK2 and 0.059 on MAO-B; TG2's ≈0.08 sits above both, and its 38.6%
+identical-fingerprint rate is four times either. TG2 is an unusually redundant dataset and should
+not be quoted as typical.
+
+**The applicability floor is dataset-specific, now on three measurements.** TG2 reaches chance below
+0.4 Tanimoto; CDK2 scores 0.739 there; MAO-B 0.622. Three targets, three different floors, with the
+same qualitative trend of reliability declining with chemical distance. No fixed similarity
+threshold should be carried between datasets.
+
+**One detail does not reproduce.** Calibration degrades monotonically with split severity on CDK2
+(ECE 0.027 → 0.042 → 0.092) but not on MAO-B, where the paper split (0.035) is better calibrated
+than the scaffold split (0.050). We have no mechanism to offer and do not speculate; it is recorded
+because the CDK2 trend would otherwise read as general.
+
 ## What this changes
 
-| Failure | TG2 | CDK2 | Status |
-|---|---|---|---|
-| Random-split leakage | 38.6% identical, ~0.08 AUROC | 7.3% identical, 0.030 AUROC | **Reproduces**, milder |
-| Pooled predictions | severe (cached, up to 10×) | 18% interval narrowing (1.6×) | **Reproduces**, milder; severity condition identified |
-| Training nondeterminism | −0.028 ± 0.089 noise floor | not retested (no GPU training) | Untested |
-| Publication confounding | 0.974 → 0.574 | 0.898 → 0.830 | **Reproduces**, and larger than the scaffold effect |
-| Novelty → reliability | chance below 0.4 | 0.739 below 0.4 | **Partly** — trend reproduces, threshold does not |
+| Failure | TG2 | CDK2 | MAO-B | Status |
+|---|---|---|---|---|
+| Random-split leakage | 38.6% identical, ≈0.08 | 7.3%, 0.030 | 8.9%, 0.059 | **Reproduces**, milder on both |
+| Pooled predictions | severe (cached, 10×) | 18% narrowing (1.6×) | 15% narrowing (1.4×) | **Reproduces**, milder; severity condition identified |
+| Training nondeterminism | −0.028 ± 0.089 | not retested | not retested | Untested beyond TG2 |
+| Publication confounding | 0.974 → 0.574 | 0.898 → 0.830 | 0.865 → 0.789 | **Reproduces on both, and exceeds the scaffold effect on both** |
+| Novelty → reliability | chance below 0.4 | 0.739 below 0.4 | 0.622 below 0.4 | **Partly** — trend reproduces, threshold is dataset-specific |
 
 **Strengthened:** publication-level confounding is not an artefact of small concentrated panels. It
-appeared on a 2,646-molecule, 351-publication dataset and exceeded the scaffold effect. The
-recommendation to report a publication-held-out split is now supported on two independent targets.
+appeared on a 2,646-molecule / 351-publication dataset and a 5,840-molecule / 586-publication one,
+and on both it exceeded the scaffold effect. The recommendation to report a publication-held-out
+split is supported on three targets spanning three enzyme classes.
 
 **Weakened:** the 0.4 Tanimoto applicability floor is a TG2 property, not a general one. Any claim
 that models fail below a fixed similarity threshold must be made per dataset.
@@ -176,8 +252,9 @@ the numbers do not.
 
 ## Limitations
 
-- One additional target. Two targets establish that a failure is not unique to TG2; they do not
-  establish a general law, and the magnitudes still differ substantially between them.
+- Three targets, all human enzymes from ChEMBL curated by one pipeline. They establish that these
+  failures are not unique to TG2; they do not establish a general law, and the magnitudes differ
+  substantially between them. A target from a different data source would test more.
 - Nondeterminism was not retested, since this phase ran no GPU training. It remains a single-target
   observation.
 - Molecules are attributed to their first source publication. A molecule measured in several papers

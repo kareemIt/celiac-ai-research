@@ -42,9 +42,9 @@ from scripts.audit_splits import tanimoto_to_train
 from src.data import chem, chembl
 from src.evaluation import metrics
 
-SPLITS_OUT = "results/second_target_splits.csv"
-LEAK_OUT = "results/second_target_leakage.csv"
-NOVEL_OUT = "results/second_target_novelty.csv"
+SPLITS_OUT = "results/second_target_{name}_splits.csv"
+LEAK_OUT = "results/second_target_{name}_leakage.csv"
+NOVEL_OUT = "results/second_target_{name}_novelty.csv"
 RAW = "data/raw/chembl/{name}_activities.csv"
 NEAR_DUPLICATE = 0.7
 
@@ -208,7 +208,7 @@ def main(target, seeds, reps):
     leak = leak[["split", "shared_scaffolds", "shared_papers", "mean_max_tanimoto",
                  "frac_identical", "frac_near_duplicate"]]
     print(leak.to_string(index=False, float_format="%.3f"))
-    leak.to_csv(LEAK_OUT, index=False)
+    leak.to_csv(LEAK_OUT.format(name=target), index=False)
 
     print("\n## 2. The same molecules and models under each split\n")
     rows = [evaluate(k, m, smiles, fp, y, papers, seeds, reps, rng)
@@ -235,15 +235,15 @@ def main(target, seeds, reps):
     print("\n## 4. Does chemical novelty predict where the model is reliable?\n")
     nov = novelty_curve(smiles, fp, y, papers, seeds)
     print(nov.to_string(index=False, float_format="%.3f"))
-    nov.to_csv(NOVEL_OUT, index=False)
+    nov.to_csv(NOVEL_OUT.format(name=target), index=False)
     print("\n  TG2 found every model at chance below 0.4 Tanimoto. The same bins are used here.")
 
     print("\n## 5. Does the pooled-prediction artefact reproduce?\n")
     pooled_vs_molecule(smiles, fp, y, papers, seeds, reps, rng)
 
     os.makedirs("results", exist_ok=True)
-    d.to_csv(SPLITS_OUT, index=False)
-    print(f"\nwrote {SPLITS_OUT} and {LEAK_OUT}")
+    d.to_csv(SPLITS_OUT.format(name=target), index=False)
+    print(f"\nwrote results/second_target_{target}_*.csv")
 
 
 if __name__ == "__main__":
