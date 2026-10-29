@@ -1,0 +1,22 @@
+section,property,molecules_tg2_papers,publications,scaffolds,with_exact_tg2_ic50,values,values_censored,molecules_all_sources,paired_molecules,with_permeability,below_1e-6_cm_s,rank,molecule_chembl_id,tg2_ic50_nM,fxiiia_ic50_nM,fold,papp_10e6_cm_s,assay_system,n_adme_rows,document_chembl_id,zed1227,measured_median,measured_min,measured_max,n_above_zed1227,n
+sufficiency,permeability,37.0,9.0,24.0,14.0,62.0,0.0,39.0,,,,,,,,,,,,,,,,,,
+sufficiency,efflux ratio,9.0,5.0,7.0,3.0,15.0,0.0,9.0,,,,,,,,,,,,,,,,,,
+sufficiency,solubility,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,
+sufficiency,stability,17.0,3.0,10.0,13.0,36.0,1.0,17.0,,,,,,,,,,,,,,,,,,
+sufficiency,half-life,65.0,8.0,44.0,48.0,113.0,86.0,70.0,,,,,,,,,,,,,,,,,,
+sufficiency,clearance,12.0,6.0,11.0,9.0,14.0,5.0,18.0,,,,,,,,,,,,,,,,,,
+sufficiency,protein binding,9.0,3.0,8.0,7.0,10.0,0.0,10.0,,,,,,,,,,,,,,,,,,
+sufficiency,lipophilicity,19.0,1.0,10.0,5.0,19.0,0.0,19.0,,,,,,,,,,,,,,,,,,
+sufficiency,in vivo PK,4.0,3.0,3.0,1.0,19.0,0.0,7.0,,,,,,,,,,,,,,,,,,
+combined_criteria,,,,,,,,,147.0,7.0,1.0,,,,,,,,,,,,,,,
+comparison,,,,,,,,,,,,1.0,CHEMBL2203451,14.000000000000005,35000.0,2499.999999999999,14.200000000000001,MDCK; PAMPA,10.0,CHEMBL2203174,,,,,,
+comparison,,,,,,,,,,,,2.0,CHEMBL2203469,62.000000000000064,66999.99999999993,1080.6451612903204,30.3,MDCK,6.0,CHEMBL2203174,,,,,,
+comparison,,,,,,,,,,,,3.0,CHEMBL2203467,54.00000000000007,21000.00000000001,388.8888888888886,,,0.0,CHEMBL2203174,,,,,,
+comparison,,,,,,,,,,,,4.0,CHEMBL5963787,26.000000000000014,5690.000000000008,218.84615384615404,,,0.0,CHEMBL5729393,,,,,,
+comparison,,,,,,,,,,,,5.0,CHEMBL2086544,14.000000000000005,2499.9999999999995,178.57142857142847,,,0.0,CHEMBL2086255,,,,,,
+descriptor,mw,,,,,,,,,,,,,,,,,,,,528.6100000000002,494.61100000000033,225.247,703.8400000000001,7.0,37.0
+descriptor,clogp,,,,,,,,,,,,,,,,,,,,1.380700000000002,2.377719999999999,0.40499999999999986,4.619200000000004,33.0,37.0
+descriptor,tpsa,,,,,,,,,,,,,,,,,,,,153.42000000000002,94.64,50.19,137.78000000000003,0.0,37.0
+descriptor,hbd,,,,,,,,,,,,,,,,,,,,3.0,2.0,0.0,3.0,0.0,37.0
+descriptor,hba,,,,,,,,,,,,,,,,,,,,7.0,5.0,3.0,7.0,0.0,37.0
+descriptor,rotatable,,,,,,,,,,,,,,,,,,,,14.0,11.0,3.0,15.0,1.0,37.0

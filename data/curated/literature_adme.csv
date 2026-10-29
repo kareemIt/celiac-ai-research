@@ -1,0 +1,15 @@
+compound,chembl_id,property,relation,value,units,assay,conditions,evidence,source,locator
+ZED1227,CHEMBL4081588,solubility,=,100,uM,HPLC in buffer,PBS pH 7.4,experimental,Buchold 2022 Cells 11:1667,Table 1
+ZED1227,CHEMBL4081588,solubility,=,48900,uM,HPLC in buffer,diluted HCl pH 1.1,experimental,Buchold 2022 Cells 11:1667,Table 1
+ZED1227,CHEMBL4081588,logD,=,2.0,log,shake-flask,octanol / PBS pH 7.4,experimental,Buchold 2022 Cells 11:1667,Table 1
+ZED1227,CHEMBL4081588,permeability_AB,<,1.0,10^-6 cm/s,Caco-2,200 uM apical; HBSS pH 6.5 + 1% DMSO; propranolol 20 uM control,experimental,Buchold 2022 Cells 11:1667,Table 1
+ZED1227,CHEMBL4081588,stability,=,10,% parent remaining,chemical stability,"PBS/saline pH 7.4, 100 uM, 24 h, 37 C",experimental,Buchold 2022 Cells 11:1667,Table 1
+ZED1227,CHEMBL4081588,stability,=,89,% parent remaining,chemical stability,"PBS pH 5.0, 100 uM, 24 h, 37 C",experimental,Buchold 2022 Cells 11:1667,Table 1
+ZED1227,CHEMBL4081588,stability,=,95,% parent remaining,simulated gastric fluid,"pH 1.2, 100 uM, 24 h, 37 C",experimental,Buchold 2022 Cells 11:1667,Table 1
+ZED1227,CHEMBL4081588,stability,=,82,% parent remaining,simulated intestinal fluid,"pH 6.5, 100 uM, 24 h, 37 C",experimental,Buchold 2022 Cells 11:1667,Table 1
+ZED1227,CHEMBL4081588,stability,=,98,% parent remaining,glutathione reactivity,"10 mM GSH (160-fold excess), 48 h, 25 C, 7% THF / 13% MeOH",experimental,Buchold 2022 Cells 11:1667,Table 1
+ZED1227,CHEMBL4081588,cytotoxicity,>,1000,uM,Caco-2 and Huh7,BrdU 24 h proliferation and EZ4U 48 h viability,experimental,Buchold 2022 Cells 11:1667,Table 1
+ZED1227,CHEMBL4081588,intestinal_target_engagement,=,2.7,fold villous enterocyte vs lamina propria,immunohistochemistry with a TG2-bound-ZED1227-specific antibody,human duodenal biopsies during gluten challenge and drug treatment,experimental,Isola 2023 Int J Mol Sci 24:10815,Results
+ZED1227,CHEMBL4081588,plasma_protein_binding,,,,,not reported in any source we retrieved,unknown,,
+ZED1227,CHEMBL4081588,metabolic_stability,,,,,"no microsome, hepatocyte or CYP data in any source we retrieved",unknown,,
+ZED1227,CHEMBL4081588,human_PK,,,,,"no Cmax, AUC, half-life or bioavailability published; phase 1/2a PK not reported",unknown,,

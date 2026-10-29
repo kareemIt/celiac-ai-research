@@ -193,7 +193,7 @@ humans are ones our datasets do not contain and our models therefore cannot opti
 |---|---|---|
 | TG2 potency | yes (631 molecules) | 53 nM — matched by our compounds |
 | FXIII-A selectivity | partly (147 pairs) | > 900× — exceeded by our compounds |
-| **Gut-restricted delivery** | **no** | Caco-2 Papp < 1 × 10⁻⁶ cm/s, by design |
+| **Gut-restricted delivery** | **thinly** — 37 molecules, 9 papers ([`adme_analysis.md`](adme_analysis.md)) | Caco-2 Papp < 1 × 10⁻⁶ cm/s, by design |
 | **Human intestinal target engagement** | **no** | demonstrated in enterocytes, ref 3 |
 | **Oral dosing and tolerability** | **no** | 6 weeks at up to 100 mg |
 | **Activity in disease, not just enzyme** | **no** | mucosal histology endpoint |
@@ -226,8 +226,13 @@ to a candidate, and the limiting factor is not the model.
 
 ### 4.2 The most important remaining gaps
 
-1. **Intestinal exposure is absent from every dataset we hold.** It is the property that made
-   ZED1227 a drug rather than a tool compound, and we have no data on it at all for any molecule.
+1. ~~**Intestinal exposure is absent from every dataset we hold.** It is the property that made
+   ZED1227 a drug rather than a tool compound, and we have no data on it at all for any molecule.~~
+   **Withdrawn 2026-10-29.** The claim was wrong: our files were pulled by target, and ChEMBL
+   files ADME under the molecule. Querying for it returns measured permeability for 37 molecules
+   in TG2 papers, including our two most selective compounds — both of which are highly permeable.
+   See [`adme_analysis.md`](adme_analysis.md). The rest of §4.2 stands, and so does the conclusion
+   of §3.3: the data is still far too thin and too fragmented to model.
 2. **No quantitative human PK or long-term safety is public [U]**, so even a well-predicted
    molecule could not be assessed against the clinical benchmark.
 3. **The FXIII-A record for the clinical compound is a ">10 nM" bound** where the literature says

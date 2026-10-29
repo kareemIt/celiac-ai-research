@@ -34,6 +34,7 @@ Then, by theme:
 - [`docs/covalent.md`](docs/covalent.md) — kinact/Ki and covalent mechanism
 - [`docs/screening_prep.md`](docs/screening_prep.md) — unit recovery, +45 new molecules
 - [`docs/zed1227_analysis.md`](docs/zed1227_analysis.md) — the clinical compound as a reference
+- [`docs/adme_analysis.md`](docs/adme_analysis.md) — intestinal exposure and ADME, and one withdrawn claim
 
 **Where it was heading**
 - [`docs/experimental_plan.md`](docs/experimental_plan.md) — the preregistered 16-compound study
@@ -45,8 +46,11 @@ A random forest beats the fine-tuned LLM. Below ~0.4 Tanimoto every model ranks 
 (but not on CDK2 or MAO-B — that floor is dataset-specific). Selectivity against FXIII-A is
 predictable inside *one* 69-molecule series and nowhere else. The clinical compound ZED1227 is
 already in our training data, and our own compounds beat it on both potency and selectivity — what
-it has that they lack is gut-restricted delivery, which appears in no dataset we hold. **No
-candidate shortlist has been produced and none is justified.**
+it has that they lack is gut-restricted delivery. That axis does exist in the data after all —
+ChEMBL files ADME under the molecule, not the target, and our two most selective compounds turn out
+to be highly permeable, which is the wrong direction for a celiac drug. It is still 37 molecules
+across 9 papers, far too thin to model. **No candidate shortlist has been produced and none is
+justified.**
 
 ## Running it
 
