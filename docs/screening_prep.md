@@ -46,7 +46,7 @@ The assignment is **document-level, from the paper's stated unit plus a scale ma
 row by row**, because the paper's tables are embedded as images. That limitation is recorded in the
 module and should be stated wherever these data are used.
 
-**Refused — CHEMBL2086255.** The largest block, and we left it out. The article is not open access;
+**Refused — CHEMBL2086255.** The largest block, and we left it out (see §4b for the full search). The article is not open access;
 a later paper from the same group quotes k_inact/K_I in M⁻¹ min⁻¹, while the stored values here
 (0.29–1460, median 80.5) would fit either M⁻¹ min⁻¹ or mM⁻¹ min⁻¹ depending on the series. A
 three-order-of-magnitude error would be invisible in aggregate and would corrupt every model
@@ -101,7 +101,8 @@ because of limited enzyme availability — which is too few to model and enough 
 
 ## 4. Does this change what we can claim?
 
-**Yes for mechanism, partly for selectivity, no for the IC50 novelty problem.**
+**Yes for mechanism, no for selectivity, no for the IC50 novelty problem.** Sections 4b–4d below
+test each claim; the selectivity half of this answer was downgraded after measurement.
 
 - **Covalent efficiency modelling** becomes worth retrying: 219 molecules, 94 scaffolds, 7
   publications, two warhead classes. The paper-held-out protocol still applies, and the
@@ -118,6 +119,112 @@ unchanged from [`selectivity.md`](selectivity.md): we cannot predict selectivity
 transfers across series, and ranking by predicted TG2 potency carries no selectivity information
 (AUROC 0.454). A shortlist without a selectivity column would be misleading for a chronic
 indication in otherwise-healthy people; a shortlist with one would be unsupported.
+
+## 4b. Prime et al. 2012: units could not be established, records stay excluded
+
+A dedicated attempt was made to resolve the largest remaining block. It failed, and the search is
+recorded so nobody repeats it.
+
+| Source | Result |
+|---|---|
+| PubMed abstract (PMID 22224594) | no kinetic values or units |
+| Europe PMC record | `isOpenAccess: N`, `inEPMC: N`, `hasSuppl: N`, no PMCID |
+| Semantic Scholar | abstract elided by publisher, `openAccessPdf: null`, status CLOSED |
+| ACS article page | HTTP 403 |
+| ChEMBL **original** `units` field (not just `standard_units`) | empty for all 55 records |
+| ChEMBL assay description | "ratio of Kinact to Ki" — no unit |
+| Compounds shared with a unit-bearing publication | **zero** |
+
+The last two lines are the ones that close it. ChEMBL stores both a publication's original unit
+string and its standardised one; for this document **both are empty on all 55 records**, and
+`standard_flag` is 0, meaning ChEMBL never standardised them. And not one of the 18 valued
+molecules appears in any other publication that does carry a unit, so there is no compound that
+could anchor the scale.
+
+A secondary search result claimed this paper's abstract reports k_inact/K_I above 10⁵ M⁻¹ min⁻¹.
+**It does not.** Two independent records (PubMed, Europe PMC) confirm the abstract contains no
+kinetic constants; the claim belongs to the group's 2017 follow-up, which is already in our data
+with explicit units. Acting on it would have been exactly the error we were told to avoid —
+inferring units from a later publication.
+
+**A correction to our own earlier report.** This block was described as 55 molecules. Only **18 of
+the 55 records carry a value at all**; the other 37 are "Not Determined". The gain at stake was
+therefore 18 measurements, not 55, which also means the cost of refusing is smaller than we said.
+
+**Decision: the records remain excluded.** They can be recovered by one person with library access
+reading one table — that is still worth doing, but it cannot be done from public sources.
+
+## 4c. The expanded kinetic set: a real gain, with a confound
+
+With the Klöck units recovered, `python scripts/run_covalent.py --recover` on 219 molecules across
+7 publications (`results/covalent_recovered.csv`; the original 174-molecule result is preserved
+unchanged in `results/covalent.csv`):
+
+| model | n | RMSE (log) | 95% CI | within-paper Spearman |
+|---|---|---|---|---|
+| predict the training papers' mean | 219 | 0.771 | [0.711, 0.834] | n/a |
+| molecular size alone | 219 | 0.707 | [0.629, 0.791] | 0.132 |
+| ridge on Morgan bits | 219 | 0.697 | [0.634, 0.757] | 0.180 |
+| **random forest** | 219 | **0.661** | [0.607, 0.712] | 0.156 |
+
+Paired over the same molecules: **random forest − mean = −0.110 log RMSE, 95% CI [−0.155, −0.062],
+P(no better) < 0.001.** On the 174-molecule set this was −0.046 [−0.101, +0.011], p = 0.054. **The
+model now beats the trivial baseline, significantly, where before it did not.**
+
+That reads like a clean reversal, and it is partly an artefact of what was added. The baseline got
+*worse* (0.644 → 0.771) because the dihydroisoxazoles form a second cluster with a different mean,
+so a single constant fits the pooled data less well. Some of the model's new advantage is simply
+telling two chemotypes apart — which is easy and is not transferable chemistry.
+
+The cross-warhead test separates the two explanations:
+
+| held-out class | n | RMSE | baseline | Spearman |
+|---|---|---|---|---|
+| acrylamide | 169 | 0.951 | 1.017 | **0.543** |
+| dihydroisoxazole | 45 | 0.731 | 1.051 | **0.035** |
+
+Trained on acrylamides, the model places dihydroisoxazoles at roughly the right *level* (0.731
+against a 1.051 baseline) but **cannot rank them at all** (Spearman 0.035). In the other direction
+it ranks acrylamides reasonably (0.543) while barely improving on the baseline RMSE. Neither
+direction shows transferable structure–activity understanding: one gets the offset, the other gets
+the order, and prioritisation needs both.
+
+**And paper is confounded with warhead.** CHEMBL3351998 is entirely dihydroisoxazole, so for that
+fold "hold out the publication" and "hold out the warhead class" are the same operation. The
+leave-one-paper-out number above cannot fully separate the two, and should be read with that in
+mind. This is the same species of confound the evaluation paper documents, appearing again in our
+own new data.
+
+**Honest summary:** the expanded set makes the covalent model beat a constant across publications,
+which the earlier set could not. Within-paper ranking remains weak (Spearman 0.156 against 0.120),
+so the practical capability — ordering analogs inside a new series — has not arrived.
+
+## 4d. TG2 versus TGM1 within one laboratory
+
+47 molecules carry paired TG2 and TGM1 kinact/Ki (45 dihydroisoxazoles, 2 acrylamides), nearly all
+from Klöck et al. Selectivity is treated as the continuous log ratio rather than a class, which
+avoids inventing a threshold and cancels much of the single-laboratory assay offset.
+
+**These compounds are mostly not selective.** log₁₀(TG2/TGM1) spans −0.98 to +2.65 with a median of
+**+0.00**; 24 of 47 favour TG2 at all, and only **2 of 47** are more than tenfold selective. TG2 and
+TGM1 potency correlate at r = 0.335 (p = 0.021) — moderate, so selectivity is not merely a
+restatement of potency and there is in principle a separate signal.
+
+**It still cannot be predicted.** Leave-one-scaffold-out within the series:
+
+| model | n | RMSE (log ratio) | 95% CI | Spearman |
+|---|---|---|---|---|
+| predict the mean | 47 | **0.626** | — | n/a |
+| random forest | 47 | 0.655 | [0.290, 0.962] | 0.140 |
+
+The model is *worse* than predicting a constant. Holding provenance fixed removed the confound that
+produced the earlier 0.974 artefact, and what remains underneath is no signal we can extract at
+n = 47.
+
+**TGM1 is not FXIII-A, and this result is not a safety argument.** FXIII-A crosslinks fibrin and its
+inhibition causes bleeding; TGM1 is epidermal. Only 10 molecules carry paired TG2/FXIII-A kinetic
+data. Nothing here licenses any statement about bleeding risk, and no compound in this project may
+be called selective.
 
 ## 5. Screening libraries, surveyed not screened
 

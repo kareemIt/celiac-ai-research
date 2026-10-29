@@ -38,20 +38,42 @@ from scipy import stats
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Ridge
 
-from src.data import chem, chembl
+from rdkit import Chem
+
+from src.data import chem, chembl, kinetic_units
 
 OUT = "results/covalent.csv"
+OUT_RECOVERED = "results/covalent_recovered.csv"
+
+
+def MODELS_RF():
+    return RandomForestRegressor(n_estimators=500, random_state=0, n_jobs=-1)
 RAW = "data/raw/chembl/tgm2_activities.csv"
 # kinact/Ki is a second-order rate constant; ChEMBL stores it in three different units.
 TO_PER_M_S = {"/M/s": 1.0, "10^3/M/min": 1000 / 60, "10'3/M/min": 1000 / 60}
 
 
-def kinetic_table(path=RAW):
+def warhead_of(smiles):
+    """Which electrophile class a molecule carries. Used as a split, never as a feature."""
+    pats = {"dihydroisoxazole": "C1=NOCC1", "acrylamide": "C=CC(=O)N",
+            "chloroacetamide": "ClCC(=O)N"}
+    m = Chem.MolFromSmiles(smiles)
+    if m is None:
+        return "other"
+    for name, sm in pats.items():  # dihydroisoxazole first: it never co-occurs with acrylamide
+        if m.HasSubstructMatch(Chem.MolFromSmarts(sm)):
+            return name
+    return "other"
+
+
+def kinetic_table(path=RAW, recover=False):
     """One row per molecule: median log10(kinact/Ki in /M.s), with its source paper.
 
     Only exact ('=') rows in a convertible unit survive. Rows with no unit at all cannot be placed
     on a common scale and are dropped rather than guessed at."""
     r = chembl.load_raw(path)
+    if recover:
+        r = kinetic_units.apply(r)
     d = r[(r.standard_type == "Ratio") & (r.standard_relation == "=")
           & r.standard_units.isin(TO_PER_M_S) & r.standard_value.notna()].copy()
     if d.empty:  # every row censored or unitless; the multiply below would raise on empty columns
@@ -93,18 +115,22 @@ def evaluate(name, X, y, groups, reps, rng):
             "_pred": preds, "_y": y}
 
 
-def main(reps):
+def main(reps, recover):
     rng = np.random.default_rng(0)
-    t = kinetic_table()
+    t = kinetic_table(recover=recover)
     y = t.logk.to_numpy()
     smiles = t.smiles.tolist()
     papers = t.paper.to_numpy()
     scaf = np.array([MurckoScaffold.MurckoScaffoldSmiles(s) for s in smiles])
+    warhead = np.array([warhead_of(s) for s in smiles])
     fp = chem.morgan(smiles)
     heavy = np.array([[Chem.MolFromSmiles(s).GetNumHeavyAtoms()] for s in smiles], dtype=float)
 
     print(f"## The data: {len(t)} molecules, {len(set(papers))} papers, "
-          f"{len(set(scaf))} Murcko scaffolds")
+          f"{len(set(scaf))} Murcko scaffolds"
+          + (" (with recovered units)" if recover else ""))
+    print("   warheads: " + ", ".join(f"{w}={int((warhead == w).sum())}"
+                                      for w in sorted(set(warhead))))
     print(f"   log10(kinact/Ki) spans {y.min():.2f} to {y.max():.2f}, SD {y.std(ddof=1):.2f}\n")
     print("   molecules per paper: " + ", ".join(
         f"{p[-5:]}={int((papers == p).sum())}" for p in np.unique(papers)))
@@ -141,6 +167,27 @@ def main(reps):
                  "rmse": float(np.sqrt(em.mean()) - np.sqrt(eb.mean())),
                  "rmse_lo": float(lo), "rmse_hi": float(hi), "p_not_better": pw})
 
+    classes = [w for w in set(warhead) if (warhead == w).sum() >= 20]
+    if len(classes) > 1:
+        print("\n## Across warhead classes: train on one electrophile, predict the other\n")
+        print("   This is the question the recovered data makes askable. A model that transfers\n"
+              "   here has learned the recognition element; one that does not has learned a series.\n")
+        print(f"   {'held-out class':<20}{'n':>5}{'RMSE (log)':>13}{'baseline':>11}{'Spearman':>11}")
+        for w in sorted(classes):
+            te = warhead == w
+            tr = ~te
+            m = MODELS_RF()
+            m.fit(fp[tr], y[tr])
+            pr = m.predict(fp[te])
+            rmse = float(np.sqrt(np.mean((y[te] - pr) ** 2)))
+            base = float(np.sqrt(np.mean((y[te] - y[tr].mean()) ** 2)))
+            rho = stats.spearmanr(y[te], pr).statistic if np.std(pr) > 0 else np.nan
+            print(f"   {w:<20}{int(te.sum()):>5}{rmse:>13.3f}{base:>11.3f}{rho:>11.3f}")
+            rows.append({"model": "rf", "split": f"held-out warhead: {w}", "n": int(te.sum()),
+                         "rmse": rmse, "rmse_lo": np.nan, "rmse_hi": np.nan,
+                         "mean_within_group_spearman": rho, "baseline_rmse": base})
+        print("\n   'baseline' predicts the training classes' mean for everything.")
+
     print("\n## The same models under a scaffold split, for contrast only\n")
     print(f"   {'model':<10}{'n':>5}{'RMSE (log)':>13}{'95% CI':>20}")
     for name, X in [("mean", fp), ("rf", fp)]:
@@ -152,11 +199,14 @@ def main(reps):
 
     os.makedirs("results", exist_ok=True)
     pd.DataFrame([{k: v for k, v in r.items() if not k.startswith("_")} for r in rows]).to_csv(
-        OUT, index=False)
-    print(f"\nwrote {OUT}")
+        OUT_RECOVERED if recover else OUT, index=False)
+    print(f"\nwrote {OUT_RECOVERED if recover else OUT}")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--reps", type=int, default=2000)
-    main(ap.parse_args().reps)
+    ap.add_argument("--recover", action="store_true",
+                    help="use units recovered from primary publications (src/data/kinetic_units.py)")
+    a = ap.parse_args()
+    main(a.reps, a.recover)
