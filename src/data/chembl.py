@@ -19,9 +19,20 @@ def load_raw(path=RAW):
 
 
 def _usable(df):
-    """IC50 in nM, positive, not flagged by ChEMBL's own curation."""
+    """IC50 in nM from a binding assay, positive, not flagged by ChEMBL's own curation.
+
+    The assay_type filter matters only outside the transglutaminase family, whose files are 100%
+    type B. CDK2 mixes in functional (F) and ADMET (A) rows whose IC50 is a cell-viability readout
+    rather than enzyme inhibition -- its F rows have a median of 14,100 nM against 200 nM for the
+    binding assays -- so pooling them would label the same chemistry inconsistently.
+
+    Censored rows with a '<' bound are still ignored rather than read as positives. Keeping one
+    rule across targets is worth more than the 65 CDK2 and 10 TG2 rows it costs, since the whole
+    point of the second target is a like-for-like comparison.
+    """
     return df[(df["standard_type"] == "IC50") & (df["standard_units"] == "nM")
-              & df["standard_value"].gt(0) & df["data_validity_comment"].isna()]
+              & df["standard_value"].gt(0) & df["data_validity_comment"].isna()
+              & (df["assay_type"] == "B")]
 
 
 def regression(df):

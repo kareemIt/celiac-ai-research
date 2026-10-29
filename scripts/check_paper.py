@@ -74,6 +74,18 @@ def claims():
     out.append(("covalent acrylamides",
                 a[(a.section == "warhead") & (a.quantity == "acrylamide")].molecules.iloc[0], 0))
 
+    s2 = pd.read_csv("results/second_target_splits.csv")
+    rf2 = s2[s2.model == "rf"].set_index("split")
+    for k in ("random", "scaffold", "paper"):
+        out.append((f"CDK2 {k}-split RF AUROC", rf2.loc[k].auroc, 3))
+        out.append((f"CDK2 {k}-split ECE", rf2.loc[k].ece, 3))
+    lk = pd.read_csv("results/second_target_leakage.csv").set_index("split")
+    out.append(("CDK2 scaffold shared papers", lk.loc["scaffold"].shared_papers, 1))
+    out.append(("CDK2 random identical frac", lk.loc["random"].frac_identical * 100, 1))
+    nv = pd.read_csv("results/second_target_novelty.csv").set_index("tanimoto_bin")
+    out.append(("CDK2 AUROC below 0.4 Tanimoto", nv.loc["0.0-0.4"].auroc, 3))
+    out.append(("CDK2 molecules below 0.4", nv.loc["0.0-0.4"].molecules, 0))
+
     f = pd.read_csv("results/tg_family_audit.csv")
     pairs = f[f.section == "pairs"].set_index("target")
     out.append(("FXIII-A shared molecules", pairs.loc["f13a1"].shared, 0))

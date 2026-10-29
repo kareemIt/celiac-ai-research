@@ -20,6 +20,7 @@ def activity(smiles, value_nM, relation="="):
         "standard_relation": relation,
         "data_validity_comment": None,
         "document_chembl_id": "d1",
+        "assay_type": "B",
     })
 
 
@@ -74,3 +75,12 @@ def test_censored_bound_above_the_cut_is_a_negative():
     """'> 10 uM' does prove 'not potent at 1 uM', and that is how inactives enter the set."""
     out = chembl.classification(activity(["CCO"], [10000.0], ">"), ic50_um=1.0)
     assert len(out) == 1 and out.y.iloc[0] == 0
+
+
+def test_non_binding_assays_are_excluded():
+    """CDK2 mixes in functional rows whose IC50 is a cell-viability readout (median 14,100 nM
+    against 200 nM for its binding assays). Labelling those as enzyme inhibition would teach a
+    model that the same chemistry is both potent and not."""
+    functional = activity(["CCO"], [10.0]).assign(assay_type="F")
+    assert chembl.classification(functional).empty
+    assert len(chembl.classification(activity(["CCO"], [10.0]))) == 1

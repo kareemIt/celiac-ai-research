@@ -1,6 +1,6 @@
 # When the Split Decides the Answer: Evaluation Methodology, Distribution Shift and Experimental Provenance in Machine-Learned TG2 Inhibitor Prediction
 
-**Draft for supervisor review — 2026-10-29**
+**Draft for supervisor review — 2026-10-29 (rev. 2: CDK2 validation added)**
 
 *Status: complete draft, not submission-ready. Venue requirements have not been checked; see
 §10.3 before any external submission.*
@@ -37,8 +37,16 @@ We additionally report that cross-reactivity is the norm in this chemical space 
 TG2-potent molecules with paired data also inhibit Factor XIII-A at 1 µM), that the transglutaminase
 family cannot expand the dataset where it is weakest, and that covalent inhibition efficiency
 (kinact/Ki) does not predict across laboratories (−0.046 log RMSE against a constant predictor, 95%
-CI [−0.101, +0.011]). We frame these as a TG2 case study, not as a general law, and we distinguish
-throughout between statistically supported findings, inconclusive results and withdrawn hypotheses.
+CI [−0.101, +0.011]). We then test three of the four failures on an independent target, CDK2 (2,646 molecules, 351
+publications, chemically unrelated to TG2). All three reproduce in direction and mechanism while
+differing in magnitude. Publication-level confounding reproduces most strongly, costing more than
+scaffold splitting (AUROC 0.898 → 0.830) on a large, diverse dataset whose positives are spread
+across hundreds of papers — contrary to our own pre-registered prediction that it would not appear
+there. The second target also corrects us: TG2's finding that models rank at chance below 0.4
+Tanimoto does **not** generalise, as CDK2 retains AUROC 0.739 in that regime, so the applicability
+floor is a per-dataset quantity rather than a constant. We distinguish throughout between
+statistically supported findings, inconclusive results and withdrawn hypotheses, and we claim a
+two-target case study rather than a general law.
 
 **Keywords:** transglutaminase 2, celiac disease, evaluation methodology, distribution shift, data
 leakage, conformal prediction, covalent inhibitors, large language models
@@ -417,7 +425,9 @@ to prevent.
 ### 5.6 Calibration, uncertainty and the applicability limit — *demonstrated*
 
 **Where prediction stops working.** Below 0.4 Tanimoto to the training set, every model ranks at
-chance. This is the single most practically consequential number in the project.
+chance *on this dataset*. This is the single most practically consequential number for TG2 — and
+§5.9 shows it does not transfer: CDK2 retains AUROC 0.739 in the same regime. The applicability
+floor must be measured per dataset, not assumed from a published threshold.
 
 **Post-hoc calibration fails under scaffold shift** for every fingerprint model, and the mechanism
 is measurable: the fitted temperature swings from 0.4 to 3.7 across folds, i.e. it is
@@ -536,6 +546,61 @@ under the publication split, for the same reason as §5.7. This is the second oc
 project on which a split that is correct for one question would have produced a publishable-looking
 number for another.
 
+### 5.9 Independent validation on CDK2 — *three failures reproduce, one claim is corrected*
+
+A single target cannot distinguish "this is how small bioactivity datasets behave" from "this is how
+the TG2 dataset behaves". We therefore repeated the diagnostics on an independent target. Five
+candidates were scored on whether they could *test* the failures — principally on publications
+contributing ≥10 labelled molecules, the criterion TG2 failed — with disqualifying thresholds fixed
+before the numbers were seen. CDK2 (CHEMBL301) was selected: 2,646 molecules, 53% positive, 1,184
+scaffolds, 351 publications, and chemistry unrelated to TG2 (median Tanimoto 0.220, one shared
+molecule). Full detail in [`second_target.md`](second_target.md).
+
+CDK2 forced one provenance decision TG2 did not. Its IC50 records mix binding (3,555), functional
+(25) and ADMET (17) assays, and the functional rows are MTT cell-viability readouts with a median
+of 14,100 nM against 200 nM for binding assays. Labels are now restricted to binding assays; this is
+verified byte-identical for every transglutaminase file, which are 100% type B.
+
+**A prediction was registered before running.** Because CDK2 spreads its positives across many
+publications (largest holding 9%, against 38% for TG2's selectivity set), we predicted that
+publication-level confounding would largely *not* reproduce. **The prediction was wrong**, and it is
+reported because a prediction that surfaces only when it succeeds is worthless.
+
+| Split | Shared scaffolds | Shared papers | Mean max Tanimoto | Identical fingerprint | RF AUROC | 95% CI |
+|---|---|---|---|---|---|---|
+| Random | 110.4 | 104.4 | 0.752 | 7.3% | 0.928 | [0.916, 0.939] |
+| Scaffold | 0.0 | 69.2 | 0.654 | 0.2% | 0.898 | [0.884, 0.913] |
+| **Publication** | 11.2 | **0.0** | 0.436 | 1.0% | **0.830** | [0.808, 0.850] |
+
+Random → scaffold costs −0.030 AUROC; scaffold → publication costs a further **−0.068**, and the
+intervals do not overlap. Calibration degrades along the same axis (ECE 0.027 → 0.042 → 0.092).
+
+The `shared papers` column gives the mechanism directly rather than by inference: a scaffold split
+removes scaffold overlap entirely and still leaves **69 publications with molecules on both sides**,
+because one laboratory's series spans several Murcko scaffolds.
+
+**What reproduces, and how strongly:**
+
+| Failure | TG2 | CDK2 | Verdict |
+|---|---|---|---|
+| Random-split leakage | 38.6% identical, ≈0.08 AUROC | 7.3% identical, 0.030 AUROC | Reproduces, milder |
+| Pooled predictions | severe (cached, up to 10×) | 18% interval narrowing (1.6×) | Reproduces, milder |
+| Publication confounding | 0.974 → 0.574 | 0.898 → 0.830 | **Reproduces, largest effect** |
+| Nondeterminism | −0.028 ± 0.089 | not retested (no GPU training) | Untested |
+| Chance below 0.4 Tanimoto | yes | **no — AUROC 0.739** | **Does not transfer** |
+
+The pooling artefact reproduces but mildly, and the comparison identifies its severity condition:
+on CDK2 every model is refitted per fold, so molecules recur only 1.6× and the interval narrows by
+18%. TG2's severe case required a model that was *not* refitted — a cached zero-shot prediction
+counted in every fold it appeared in. The artefact is general; it is dangerous specifically when a
+fixed model is compared against a refitted one, which is the comparison every "LLM versus classical
+baseline" study performs.
+
+The novelty result is the one that corrects us. Reliability declines with chemical distance on both
+targets (CDK2: 0.739 → 0.915 across similarity bins), but TG2's floor does not transfer: in the
+below-0.4 bin CDK2 scores 0.739 on 799 molecules at 39.7% positive — a large, balanced bin rather
+than a small-sample artefact. §5.6 has been qualified accordingly.
+
 ---
 
 ## 6. Synthesis: four failures, four different controls
@@ -566,9 +631,12 @@ label besides chemistry. Here, the label correlated with the source publication,
 publication correlated with the chemical series. A scaffold split, the field's standard answer to
 leakage, is powerless against this because scaffolds do not nest within publications: one
 laboratory's series spans several scaffolds, so holding out a scaffold leaves the same laboratory on
-both sides of the fold. Where a dataset is assembled from a handful of papers — which describes most
-selectivity panels and most kinetic datasets — we suggest a publication-held-out split should be
-reported alongside the scaffold split as a matter of course.
+both sides of the fold. We initially expected this to be a hazard of datasets assembled from a handful of papers, which
+describes most selectivity panels and most kinetic datasets. **The CDK2 validation (§5.9) refuted
+that:** the effect appeared on 2,646 molecules drawn from 351 publications, none holding more than
+9% of the positives, and there it exceeded the scaffold effect (−0.068 against −0.030). On the
+evidence of two independent targets we suggest a publication-held-out split should be reported
+alongside the scaffold split as a matter of course, not only for small panels.
 
 A general caution follows from the pattern rather than from any single case. In three of the four
 instances, the *erroneous* protocol produced the more publishable number: 0.95 instead of 0.87,
@@ -617,9 +685,12 @@ chemistry or the statistics would have revealed it.
 
 ## 8. Limitations
 
-**Single target.** Everything here is one protein, one disease and 631 molecules. We make no claim
-that the magnitudes generalise. The mechanisms are plausible elsewhere; the numbers are not
-transferable.
+**Two targets, not a survey.** The core findings come from one protein, one disease and 631
+molecules, with three of the four failures retested on CDK2 (§5.9). Two targets show a failure is
+not unique to TG2; they do not establish a general law. The magnitudes differ substantially between
+them — 38.6% against 7.3% identical fingerprints, chance against AUROC 0.739 below 0.4 Tanimoto —
+so the mechanisms appear transferable while the numbers plainly are not. Nondeterminism remains a
+single-target observation, as the CDK2 phase ran no GPU training.
 
 **Small subsets behind the strongest claims.** The novel-chemistry stratum has 42 molecules, 23
 Butina clusters and 6 positives. The selectivity publication-held-out folds average 15 molecules.
@@ -663,11 +734,13 @@ A within-series model there would test chemistry rather than inter-laboratory of
 question answered honestly instead of a larger one answered badly. We state in advance that a
 52-molecule fold may also fail, and that this should not be reported as a surprise if it does.
 
-**Independent datasets.** Every finding here rests on one dataset assembled from two overlapping
-sources. The methodological claims would be substantially strengthened by repeating the four
-diagnostic checks on an unrelated target with a similar data profile — small, literature-derived,
-analog-series-dominated. This is the most direct route from a case study toward a general claim, and
-we consider it the highest-value extension of the work.
+**Independent datasets — begun, not finished.** Three of the four checks have now been repeated on
+CDK2 (§5.9) and all three reproduced. Two further steps remain. MAO-B is pre-screened and ready
+(5,859 molecules, 209 publications, positives spread even more evenly than CDK2's); a third target
+would show whether the *ordering* of the failure magnitudes is stable or incidental. And the
+nondeterminism check has still been run only once, on one GPU and one model family — the cheapest
+way to generalise it is to repeat the identical-configuration comparison on any other quantized
+fine-tune.
 
 **A chemically appropriate screening library.** The one direction not yet ruled out. Approved-drug
 repurposing is exhausted (§5.6), but analogs within 0.5–0.7 Tanimoto of known actives sit inside the
@@ -694,12 +767,13 @@ a collaborator as a test of the model, not as a set of candidate compounds.
 **Statistically supported:** random splits leak on this dataset (38.6% identical fingerprints);
 censored measurements are informative negatives (305 → 367 molecules); a tuned random forest beats
 the QLoRA-fine-tuned 9B language model (−0.049 AUROC, 95% CI [−0.076, −0.021]); fine-tuning
-substantially improves on zero-shot (+0.199, 10/10 seeds); below 0.4 Tanimoto all models rank at
-chance; temperature scaling fails under scaffold shift while conformal prediction holds coverage
+substantially improves on zero-shot (+0.199, 10/10 seeds); below 0.4 Tanimoto all models rank at chance *on TG2*, while CDK2 retains
+0.739 in the same regime, so the floor is dataset-specific; temperature scaling fails under scaffold shift while conformal prediction holds coverage
 (0.922 against 0.90); confidence-based abstention cuts error 15.5% → 6.5%; 103 of 132 TG2-potent
 molecules with paired data also inhibit FXIII-A; between-publication offset in kinact/Ki (0.50 log)
 rivals within-publication spread (0.57 log); QLoRA training can be made bit-exact, and the cause of
-its nondeterminism is backward-pass kernel selection.
+its nondeterminism is backward-pass kernel selection; on CDK2, holding out whole publications costs
+more AUROC than scaffold splitting (0.898 → 0.830, non-overlapping intervals).
 
 **Inconclusive:** KL anchors improve overall AUROC by 0.038 (p = 0.127); they change novel-chemistry
 AUROC by +0.035 (95% CI [−0.107, +0.225]); selectivity is predictable across publications (0.574,
@@ -712,10 +786,16 @@ deterministic training).
 
 ### 10.2 The contribution
 
-On a small, literature-derived bioactivity dataset, the evaluation protocol determined the
-conclusion more often than the model did. We document four mechanistically distinct instances on one
-target, each with a measured before-and-after effect, two of which were caught only after being
-written down as findings. Three of the four erroneous protocols produced the more attractive number.
+On literature-derived bioactivity datasets, the evaluation protocol determined the conclusion more
+often than the model did. We document four mechanistically distinct instances on TG2, each with a
+measured before-and-after effect, two of which were caught only after being written down as
+findings; three of the four erroneous protocols produced the more attractive number. Three of the
+four then reproduced on an independent target of different size, chemistry and provenance structure.
+
+The second target also constrains the claim in both directions. Publication-level confounding proved
+more general than we predicted, appearing on a 351-publication dataset and there exceeding the
+scaffold effect. The 0.4 Tanimoto applicability floor proved less general than TG2 suggested, and is
+withdrawn as a cross-dataset claim.
 
 The practical recommendation is modest and specific: alongside the scaffold split that is already
 standard, small-dataset bioactivity studies should report (i) the independent unit behind every
@@ -805,10 +885,12 @@ cuDNN 9.24), transformers 5.21.0, peft 0.21.2, bitsandbytes 0.50.2, NumPy 2.5.4.
 | Transglutaminase family | `python scripts/fetch_chembl_tg2.py --target all`, `scripts/audit_tg_family.py` | network + CPU |
 | Selectivity | `python scripts/run_selectivity.py` | CPU, ~1 min |
 | Covalent audit and model | `python scripts/audit_covalent.py`, `scripts/run_covalent.py` | CPU, ~1 min |
+| Second-target selection | `python scripts/audit_candidate_targets.py` | network + CPU, ~25 min |
+| Second-target validation | `python scripts/run_second_target.py` | CPU, ~3 min |
 
 Supporting documentation: `data.md` (provenance and validation), `baselines.md`,
 `calibration.md`, `generalization.md`, `uncertainty.md`, `forgetting.md` (KL anchors),
-`reproducibility.md` (determinism audit), `selectivity.md`, `covalent.md`, `candidates.md`,
+`reproducibility.md` (determinism audit), `selectivity.md`, `covalent.md`, `second_target.md` (CDK2 validation), `candidates.md`,
 `report.md` (consolidated internal report). Thirty automated tests cover the data-handling and
 statistical logic, including unit conversion, censored-label rules and split-grouping invariants.
 
