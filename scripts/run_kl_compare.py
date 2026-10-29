@@ -35,7 +35,7 @@ def sigmoid(z):
 
 
 def load(lam, data):
-    f = f"results/jev_qlora_epochs_{data}_kl{lam:g}.csv"
+    f = f"results/jev_qlora_epochs_{data}{lam:g}.csv"
     if not os.path.exists(f):
         return None
     d = pd.read_csv(f)
@@ -80,7 +80,7 @@ def paired_novel(ga, gb, reps, rng):
 
 def selected(lam, data):
     """Predictions at the epoch each seed's validation Brier chose: the model one would actually use."""
-    f = f"results/jev_qlora_preds_{data}_kl{lam:g}.csv"
+    f = f"results/jev_qlora_preds_{data}{lam:g}.csv"
     if not os.path.exists(f):
         return None
     d = pd.read_csv(f).query("fold == 'test'").assign(p=lambda t: sigmoid(t.logodds))
@@ -205,13 +205,13 @@ def main(lambdas, data, reps):
     # noise (4-bit matmuls, non-deterministic CUDA reductions, paged 8-bit Adam) and is the null
     # this experiment has to beat.
     rep = "results/jev_qlora_tg2_combined.csv"
-    if os.path.exists(rep) and 0.0 in runs and 1.0 in runs:
+    if data == "combined_kl" and os.path.exists(rep) and 0.0 in runs and 1.0 in runs:
         print("\n## Noise floor: two independent runs of the SAME configuration\n")
         a = pd.read_csv(rep)[["seed", "auroc"]]
-        for name, f in [("lambda 0 replicate - lambda 0", f"results/jev_qlora_tg2_{data}_kl0.csv"),
-                        ("lambda 1 - lambda 0", f"results/jev_qlora_tg2_{data}_kl1.csv")]:
+        for name, f in [("lambda 0 replicate - lambda 0", f"results/jev_qlora_tg2_{data}0.csv"),
+                        ("lambda 1 - lambda 0", f"results/jev_qlora_tg2_{data}1.csv")]:
             if name.startswith("lambda 1"):
-                a = pd.read_csv(f"results/jev_qlora_tg2_{data}_kl0.csv")[["seed", "auroc"]]
+                a = pd.read_csv(f"results/jev_qlora_tg2_{data}0.csv")[["seed", "auroc"]]
             m = a.merge(pd.read_csv(f)[["seed", "auroc"]], on="seed", suffixes=("_x", "_y"))
             dd = (m.auroc_y - m.auroc_x).to_numpy()
             p = stats.ttest_rel(m.auroc_y, m.auroc_x).pvalue
@@ -222,14 +222,16 @@ def main(lambdas, data, reps):
         print("  Rerunning the identical configuration moves the mean as far as the anchors do, so "
               "the overall-AUROC gain is not separable from training nondeterminism.")
 
-    pd.DataFrame(rows).to_csv(OUT, index=False)
-    print(f"\nwrote {OUT}")
+    out = OUT if data == "combined_kl" else f"results/kl_compare_{data}.csv"
+    pd.DataFrame(rows).to_csv(out, index=False)
+    print(f"\nwrote {out}")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--lambdas", type=float, nargs="+", default=[0.0, 1.0])
     ap.add_argument("--data", default="combined")
+    ap.add_argument("--tag", help="file prefix before the lambda, e.g. det_kl; default <data>_kl")
     ap.add_argument("--reps", type=int, default=2000)
     a = ap.parse_args()
-    main(a.lambdas, a.data, a.reps)
+    main(a.lambdas, a.tag or f"{a.data}_kl", a.reps)

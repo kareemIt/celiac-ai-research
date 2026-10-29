@@ -1,9 +1,9 @@
-# Does QLoRA make Qwen forget unfamiliar chemistry? (run 2026-10-28)
+# Does QLoRA make Qwen forget unfamiliar chemistry? (run 2026-10-29)
 
 Reproduce: `python scripts/run_novelty_stats.py` (CPU, seconds) and
-`python scripts/run_jev_qlora.py --seeds 10 --epochs 3 --data combined --kl {0,1}` (GPU, hours),
-then `python scripts/run_kl_compare.py`.
-Tables: `results/novelty_stats.csv`, `results/kl_compare.csv`.
+`python scripts/run_jev_qlora.py --seeds 10 --epochs 3 --data combined --kl {0,1} --deterministic --tag det_kl{0,1}` (GPU, hours),
+then `python scripts/run_kl_compare.py --tag det_kl`.
+Tables: `results/novelty_stats.csv`, `results/kl_compare_det_kl.csv` (deterministic, current) and `results/kl_compare.csv` (2026-10-28, superseded).
 
 ## The hypothesis
 
@@ -139,8 +139,27 @@ prior**. The second is an extrapolation, not something the paper claims.
 Both runs log valid and test log-odds after every epoch, including **epoch 0** — the adapter is
 reset to B = 0 before each seed, so epoch 0 is the untouched base model evaluated on exactly the
 molecules of that seed's folds. Each run therefore carries its own matched zero-shot control, which
-removes the cache-reuse problem of §1. 10 seeds, 3 epochs, identical splits; λ = 0 took 856 s/seed
-and λ = 1 1068 s/seed (the anchors need one extra reference forward per example), peak 8.05 GiB.
+removes the cache-reuse problem of §1.
+
+### The first attempt was not measurable, and we said so
+
+The 2026-10-28 version of this comparison ran without deterministic kernels. Rerunning the
+*identical* λ = 0 configuration shifted the headline AUROC by −0.028 ± 0.089 with per-seed swings to
+0.18 — as large as the anchor effect it was trying to measure. That experiment was underpowered
+against its own noise floor, and its numbers are superseded by everything below.
+[`reproducibility.md`](reproducibility.md) has the root cause: nondeterministic backward-pass kernel
+selection, not the quantized optimizer.
+
+**Training is now bit-exact.** With `torch.use_deterministic_algorithms(True, warn_only=False)` and
+a fixed cuBLAS workspace, three full pipeline runs on one seed agreed exactly — epoch curve,
+selected epoch, saved LoRA weights tensor by tensor, every metric — at about 10% wall-clock cost.
+Everything in this section is the rerun under that regime: 10 seeds, 3 epochs, identical splits,
+λ = 0 at 985 s/seed and λ = 1 at 1223 s/seed, peak 8.05 GiB.
+
+**Replicates are therefore unnecessary and were not run.** Under determinism two runs of a
+configuration are the same run, so the replicate null is exactly zero. The seed-to-seed spread that
+remains is split and initialization variance, and it is shared between λ = 0 and λ = 1 by
+construction, which is what makes the paired test below a test of the objective alone.
 
 ### The forgetting curve
 
@@ -150,18 +169,18 @@ and λ = 1 1068 s/seed (the anchors need one extra reference forward per example
 |---|---|---|---|---|---|
 | **epoch** | | **overall AUROC** | **novel AUROC** | **overall AUROC** | **novel AUROC** |
 | 0 (base model) | | 0.660 ± 0.146 | 0.690 | 0.660 ± 0.146 | 0.690 |
-| 1 | | 0.820 ± 0.066 | 0.616 | 0.845 ± 0.093 | 0.560 |
-| 2 | | 0.820 ± 0.091 | 0.484 | 0.827 ± 0.124 | 0.546 |
-| 3 | | 0.832 ± 0.090 | 0.470 | 0.863 ± 0.073 | 0.606 |
-| validation-selected | | 0.822 ± 0.089 | 0.456 | **0.853 ± 0.102** | **0.516** |
+| 1 | | 0.814 ± 0.093 | 0.715 | 0.841 ± 0.093 | 0.567 |
+| 2 | | 0.851 ± 0.084 | 0.736 | 0.857 ± 0.093 | 0.812 |
+| 3 | | 0.819 ± 0.088 | 0.553 | 0.872 ± 0.059 | 0.708 |
+| validation-selected | | 0.818 ± 0.072 | 0.722 | **0.856 ± 0.093** | **0.757** |
 
-**The trade is visible and it is monotone without anchors.** Training takes overall AUROC from 0.660
-to 0.832 and takes unfamiliar-chemistry AUROC from 0.690 down to 0.470, falling at every epoch. This
-is the cleanest version of the effect the project has produced, because epoch 0 is the same network
-on the same molecules rather than a cached score from a different experiment.
+**The monotone decline reported on 2026-10-28 did not reproduce.** In the deterministic run λ = 0's
+novel AUROC goes 0.690 → 0.715 → 0.736 → 0.553: up for two epochs, then down. The earlier claim of a
+clean fall at every epoch was reading a trend out of nondeterministic noise, and it is withdrawn.
 
-**With anchors the decline is smaller and it stops.** λ = 1 bottoms out at 0.546 and recovers to
-0.606 by epoch 3, while overall AUROC ends higher than λ = 0 rather than lower.
+**λ = 1 moves around just as much, in the opposite order** — 0.567, then 0.812, then 0.708. Two curves
+that cross twice over three epochs on 42 molecules are not two different behaviours; they are one
+noisy quantity measured twice.
 
 ### What the statistics allow
 
@@ -169,71 +188,72 @@ Paired bootstrap over molecules, both sides always scored on the same resampled 
 
 | comparison | ΔAUROC on the novel subset | 95% CI | P(Δ ≤ 0) |
 |---|---|---|---|
-| λ = 0, epoch 3 − base model | **−0.220** | [−0.492, +0.030] | 0.953 |
-| λ = 1, epoch 3 − base model | −0.083 | [−0.379, +0.197] | 0.711 |
-| epoch 3, λ = 1 − λ = 0 | +0.137 | [−0.068, +0.401] | 0.118 |
-| selected epoch, λ = 1 − λ = 0 | +0.060 | [−0.029, +0.167] | 0.111 |
+| λ = 0, epoch 3 − base model | −0.137 | [−0.522, +0.176] | 0.779 |
+| λ = 1, epoch 3 − base model | +0.019 | [−0.319, +0.338] | 0.446 |
+| epoch 1, λ = 1 − λ = 0 | **−0.148** | **[−0.286, −0.038]** | 0.997 |
+| epoch 2, λ = 1 − λ = 0 | +0.076 | [−0.013, +0.178] | 0.055 |
+| epoch 3, λ = 1 − λ = 0 | +0.155 | [−0.256, +0.568] | 0.224 |
+| selected epoch, λ = 1 − λ = 0 | +0.035 | [−0.107, +0.225] | 0.368 |
 
-And on the full test fold, paired per seed: λ = 1 − λ = 0 is **+0.031 AUROC** (p = 0.181, 7/10 seeds
-better), +0.025 ECE, +0.017 Brier — every metric favouring the anchors.
+**The one interval that excludes zero says the anchors made novel-chemistry performance worse**, at
+epoch 1. By epoch 2 the sign has flipped and by epoch 3 the interval is four times wider. A quantity
+whose sign depends on where you stop training is not an effect.
 
-**Not one of these clears significance.** The forgetting itself comes closest: the interval on
-−0.220 misses zero by 0.030, and the monotone fall across four epochs is evidence a single endpoint
-test does not capture. Everything about the anchors is directionally consistent and statistically
-silent.
+On the full test fold, paired per seed at the validation-selected epoch: λ = 1 − λ = 0 is
+**+0.038 AUROC** (paired t-test p = 0.127, 8 of 10 seeds better), with Brier 0.173 against 0.183 and
+ECE identical at 0.094. Per epoch the overall difference is +0.027 (p = 0.174), +0.006 (p = 0.588)
+and +0.053 (p = 0.054).
 
-### The noise floor, which settles it
+### Against the baseline that matters
 
-The 2026-10-27 QLoRA run used the same code path, data, splits and hyperparameters as λ = 0 here.
-The difference between them is therefore pure run-to-run nondeterminism — 4-bit matmuls,
-non-deterministic CUDA reductions, the paged 8-bit optimizer — and it is the null any claimed effect
-has to beat:
+| | overall AUROC | seeds better than RF |
+|---|---|---|
+| random forest (default) | 0.872 ± 0.066 | — |
+| QLoRA λ = 1 | 0.856 ± 0.093 | 4/10 (Δ −0.016 ± 0.073) |
+| QLoRA λ = 0 | 0.818 ± 0.072 | 2/10 (Δ −0.054 ± 0.080) |
+| Qwen zero-shot | 0.651 ± 0.144 | — |
 
-| | Δ overall AUROC | seeds better | paired t-test |
-|---|---|---|---|
-| **λ = 0 rerun − λ = 0 (identical configuration)** | **−0.028 ± 0.089** | 6/10 | 0.352 |
-| λ = 1 − λ = 0 (the effect) | +0.031 ± 0.069 | 7/10 | 0.181 |
-
-Per-seed swings between the two identical runs reach 0.18 AUROC (seed 0: 0.834 → 0.666; seed 3:
-0.962 → 0.783). **Rerunning the same configuration moves the mean as far as the anchors do.** The
-overall-AUROC improvement from KL anchoring is not separable from training noise, and the novel-subset
-improvement (+0.060) is the same size as the gap between the two λ = 0 runs on that subset (0.396
-versus 0.456).
+The anchors close roughly two thirds of the gap to the random forest and do not cross it. Both
+QLoRA conditions remain worse calibrated than the forest on Brier.
 
 ## Verdict
 
-**Does QLoRA fine-tuning cost unfamiliar-chemistry generalization?** Probably yes. The within-run
-matched comparison shows a monotone fall from 0.690 to 0.470 over three epochs while overall
-accuracy climbs, which is the right shape and the right direction, but the 95% interval on the
-endpoint includes zero by a hair and the subset is 42 molecules with 6 positives.
+**Is training reproducible?** Yes. Bit-exact, verified end to end on the full pipeline including
+saved weights. This is the one unambiguous result of the exercise.
 
-**Do the paper's KL anchors prevent it?** **Not demonstrated.** Every number moves the right way —
-less forgetting, better overall AUROC, better Brier, better ECE, 7/10 and 8/10 seeds — and no
-comparison is significant, while a rerun of the *identical* configuration moves the headline metric
-just as much. On this evidence the honest statement is that KL anchoring is **promising and
-unproven**, and that our experiment was underpowered against its own noise floor.
+**Do KL anchors improve overall accuracy?** By +0.038 AUROC, on 8 of 10 seeds, p = 0.127.
+**Directionally consistent and not statistically significant.** With training noise eliminated this
+is now a clean measurement of a small effect, and the remaining uncertainty is test-set sampling: 10
+scaffold splits of 631 molecules are not enough to resolve 0.038.
 
-**What would settle it,** in rough order of value per GPU-hour:
+**Do they protect unfamiliar chemistry?** **Inconclusive.** +0.035 at the selected epoch with a 95%
+interval of [−0.107, +0.225] that comfortably includes zero, and a per-epoch sign that flips from
+significantly negative to positive. Nothing here supports the claim.
 
-1. **Three to five replicates of each λ** (≈3 h each). The noise floor is currently estimated from a
-   single pair of runs; with replicates the λ effect can be tested against a measured null instead of
-   an anecdote. This is the cheapest thing that would turn the result either way.
-2. **Fix the nondeterminism** instead of measuring it: `torch.use_deterministic_algorithms(True)`,
-   a fixed cuBLAS workspace, and a non-paged optimizer. If the per-seed spread collapses, a 0.03
-   effect becomes testable with the 10 seeds we already have.
-3. **Grow the novel stratum.** 6 positive molecules is the binding constraint on every novelty
-   number in this document. Related transglutaminases in ChEMBL (TGM1, TGM3, FXIII-A) would add
-   chemically distant actives, at the cost of mixing targets.
-4. **λ = 0.1 and 0.01**, the paper's other ablation points — but only after 1 and 2, since the
-   current design cannot resolve the difference between λ = 0 and λ = 1.
+**Have we established that KL anchors prevent catastrophic forgetting?** **No.** We have not even
+established the forgetting. The monotone decline that motivated the hypothesis vanished under
+deterministic replication, so there is currently no reproducible effect for the anchors to prevent.
+
+**Is the fine-tuned LLM competitive?** No. Random forest remains the stronger baseline at
+0.872 ± 0.066 against λ = 1's 0.856 ± 0.093.
+
+**Decision: stop here.** The anchors are a small, plausible, unproven improvement, and the
+bottleneck is no longer GPU time or measurement noise — it is 42 novel molecules containing 6
+positives. More training runs cannot fix that. Further KL work is not justified until the evaluation
+set can resolve the effect size, and the project's next phase should go after data and chemistry
+rather than the objective.
 
 ## Limitations
 
-- 42 novel molecules, 23 chemical clusters, 6 positives. Every interval here is wide for that reason.
-- Three epochs. λ = 1 was still improving at epoch 3 on both axes, so its curve is truncated.
+- 42 novel molecules, 23 chemical clusters, 6 positives. Every interval here is wide for that reason,
+  and this is now the binding constraint on the whole question.
+- Three epochs. λ = 1 was still improving at epoch 3 on overall AUROC, so its curve is truncated. We
+  are not extending it, because the overall gain is not what the hypothesis was about.
 - One λ per condition beyond zero; no learning-rate or LoRA-rank sweep, by design.
 - The anchors are applied to decision prompts only, as in the paper. We never measured whether they
   preserve general chat behaviour, which is the paper's actual claim — only whether they preserve a
   chemical prior, which is ours.
+- Determinism removes measurement noise, not sample limitation. Every interval above is still a
+  statement about 631 molecules and 10 splits.
 - Nothing here is a statement about TG2 inhibition in a cell or an animal. These are retrospective
   rankings of published assay values.

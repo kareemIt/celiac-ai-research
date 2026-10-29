@@ -199,27 +199,46 @@ implementation. We implemented all three (`src/models/jev_anchors.py`, paper §3
 seeds at λ = 0 and λ = 1, logging predictions after every epoch including epoch 0 — the adapter is
 reset to B = 0 per seed, so each run carries its own matched base-model control on its own molecules.
 
+**Training is now reproducible.** The first version of this comparison was not measurable: rerunning
+the identical λ = 0 configuration moved the headline AUROC by −0.028 ± 0.089, as much as the effect
+being measured. The cause was nondeterministic backward-pass kernel selection, not the quantized
+optimizer ([`reproducibility.md`](reproducibility.md)). With deterministic algorithms enabled, three
+full pipeline runs on one seed are **bit-exact** — identical epoch curves, selected epoch, saved LoRA
+weights and metrics — at about 10% wall-clock cost. The numbers below are the rerun under that
+regime and supersede the 2026-10-28 ones.
+
 | epochs | overall AUROC (λ=0) | novel AUROC (λ=0) | overall AUROC (λ=1) | novel AUROC (λ=1) |
 |---|---|---|---|---|
 | 0 (base model) | 0.660 | 0.690 | 0.660 | 0.690 |
-| 1 | 0.820 | 0.616 | 0.845 | 0.560 |
-| 2 | 0.820 | 0.484 | 0.827 | 0.546 |
-| 3 | 0.832 | **0.470** | 0.863 | **0.606** |
+| 1 | 0.814 | 0.715 | 0.841 | 0.567 |
+| 2 | 0.851 | 0.736 | 0.857 | 0.812 |
+| 3 | 0.819 | 0.553 | 0.872 | 0.708 |
+| validation-selected | 0.818 | 0.722 | **0.856** | **0.757** |
 
-**The trade has the right shape.** Without anchors, overall accuracy climbs from 0.660 to 0.832
-while unfamiliar-chemistry accuracy falls monotonically from 0.690 to 0.470. With anchors the fall
-is shallower and reverses by epoch 3, and overall accuracy ends higher rather than lower.
+**KL regularization improved overall AUROC by 0.038, and the improvement is not statistically
+significant.** At the validation-selected epoch λ = 1 scores 0.856 ± 0.093 against λ = 0's
+0.818 ± 0.072, better on 8 of 10 seeds, paired t-test p = 0.127. Brier improves 0.183 → 0.173; ECE is
+unchanged at 0.094.
 
-**None of it is statistically established.** The forgetting comes closest — the paired bootstrap
-puts λ=0's epoch-3 loss at −0.220, 95% CI [−0.492, +0.030] — and every anchor comparison is
-directionally favourable and non-significant (+0.031 overall AUROC, p = 0.181, 7/10 seeds; +0.060
-novel AUROC, P(Δ≤0) = 0.111).
+**The novel-chemistry improvement is inconclusive.** +0.035 at the selected epoch with a 95%
+bootstrap interval of [−0.107, +0.225]. Per epoch the sign flips: −0.148 at epoch 1 (interval
+[−0.286, −0.038], excluding zero *against* the anchors), +0.076 at epoch 2, +0.155 at epoch 3 with an
+interval four times wider. An effect whose direction depends on where training stops is not an
+effect.
 
-**And the decisive control is negative.** Rerunning the *identical* λ = 0 configuration shifts the
-headline AUROC by −0.028 ± 0.089 (6/10 seeds), with per-seed swings up to 0.18 — as large as the
-anchor effect itself (+0.031 ± 0.069). 4-bit matmuls, non-deterministic CUDA reductions and the
-paged 8-bit optimizer make this experiment underpowered against its own noise floor. KL anchoring is
-**promising and unproven**; detail and the fixes that would settle it are in
+**We have not established that KL anchors prevent catastrophic forgetting.** We have not established
+the forgetting either. The monotone epoch-by-epoch decline reported on 2026-10-28 did not reproduce
+under deterministic training — λ = 0's novel AUROC rises for two epochs before falling (0.690 → 0.715
+→ 0.736 → 0.553), and the endpoint loss of −0.137 has a 95% interval of [−0.522, +0.176]. That earlier
+monotonicity was a trend read out of nondeterministic noise, and it is withdrawn.
+
+**Random forest remains the stronger baseline.** 0.872 ± 0.066 against λ = 1's 0.856 ± 0.093
+(λ = 1 better on 4 of 10 seeds, Δ −0.016 ± 0.073). The anchors close roughly two thirds of the gap
+without crossing it, and both QLoRA conditions remain worse on Brier.
+
+KL experiments are **stopped**. The limiting factor is no longer measurement noise but the
+evaluation set: 42 novel molecules in 23 chemical clusters containing 6 positives cannot resolve a
+0.035 difference, and no additional training run changes that. Detail in
 [`forgetting.md`](forgetting.md).
 
 ### Conformal prediction is the method that survives shift
@@ -309,21 +328,30 @@ training set.** Reporting the 35 nominal hits as candidates would have been easy
 
 ## 9. Next experiments
 
-1. **Extend the QLoRA schedule.** Validation chose the final epoch in 5 of 10 seeds, so half the
-   runs were truncated and 0.850 is a lower bound. Six epochs with early stopping costs about 4 GPU
-   hours and would settle whether the 0.049 gap to the random forest is real or an artifact of
-   stopping early. This is the single cheapest way to make the headline conclusion safe.
-2. **Beat the noise floor before trusting any more small effects.** Make training deterministic
-   (`torch.use_deterministic_algorithms(True)`, fixed cuBLAS workspace, non-paged optimizer), then
-   run three to five replicates per condition. The KL-anchor result is currently indistinguishable
-   from rerun-to-rerun variation, and so would be any other 0.03-AUROC effect this project measures.
-   Only after that are the paper's remaining ablation points (λ = 0.1, 0.01) worth the GPU time.
-3. **Grow the low-similarity stratum.** Six positive molecules below 0.5 Tanimoto is the binding
-   constraint on every novelty number in this report. Related transglutaminases in ChEMBL (TGM1,
-   TGM3, FXIII-A) would add chemically distant actives, at the cost of mixing targets.
-4. **Screen a chemically appropriate library**: analogs within 0.5–0.7 Tanimoto of known actives, or
-   covalent fragment libraries. This changes direction from repurposing and needs agreement first.
-5. **Selectivity modelling** against FXIII-A and TG1/TG3, where ChEMBL has data.
+The KL-anchor line is closed (§6): reproducible, small, non-significant, and limited by the
+evaluation set rather than by GPU time. Priorities below are ordered by what would most change our
+ability to identify genuinely promising TG2 inhibitors.
+
+1. **Grow the low-similarity stratum — the binding constraint on everything.** Six positive molecules
+   below 0.5 Tanimoto is why every generalization interval in this report is uninformative. Related
+   transglutaminases in ChEMBL (TGM1, TGM3, FXIII-A) would add chemically distant actives at the cost
+   of mixing targets; a multi-task model with a target indicator is the principled version. CPU-cheap
+   and it makes every later experiment testable.
+2. **Screen a chemically appropriate library instead of approved drugs.** 99.2% of approved drugs fall
+   below the applicability floor (§7), so that avenue is exhausted. Analogs within 0.5–0.7 Tanimoto of
+   known actives, and covalent warhead fragment libraries — TG2 is a cysteine transglutaminase and its
+   established inhibitors are largely covalent — are where a hit could plausibly come from. This is a
+   change of direction and needs agreement first.
+3. **Model the mechanism, not just the label.** Separate reversible from irreversible inhibitors, and
+   warhead chemotype from scaffold. A model that cannot tell a Michael acceptor from a benzimidazole
+   is ranking the wrong feature.
+4. **Selectivity modelling** against FXIII-A and TG1/TG3, where ChEMBL has data. A TG2 inhibitor that
+   hits FXIII-A is a bleeding risk, so selectivity is a gating criterion for any shortlist, not a
+   refinement.
+5. **Extend the QLoRA schedule** if the LLM line continues. Validation chose the final epoch in 5 of
+   10 seeds, so 0.856 is a lower bound. Six epochs with early stopping would settle whether the
+   remaining gap to the random forest is real. Lower priority: the LLM has not beaten fingerprints at
+   this data scale in any configuration tried.
 6. **Conformal with a Mondrian split by scaffold cluster**, to give per-chemotype coverage.
 
 ## 10. What would need laboratory collaboration

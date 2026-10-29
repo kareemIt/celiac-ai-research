@@ -115,14 +115,14 @@ def fig_models():
 
 
 def fig_forgetting():
-    """Overall accuracy rises while unfamiliar-chemistry accuracy falls, and what the anchors do."""
-    d = pd.read_csv("results/kl_compare.csv")
+    """Overall accuracy rises; the novel-subset curve swings in both directions under both lambdas."""
+    d = pd.read_csv("results/kl_compare_det_kl.csv")
     d = d[d.epoch.astype(str).str.isdigit() & d.overall_auroc.notna()].astype({"epoch": int})
     fig, axes = plt.subplots(1, 2, figsize=(9, 4), sharex=True, sharey=True)
     style = {0.0: ("#b03a5b", "lambda = 0 (no anchors)"), 1.0: ("#1b4332", "lambda = 1 (paper default)")}
     for ax, (col, lo, hi, title) in zip(axes, [
             ("overall_auroc", None, None, "All test molecules"),
-            ("novel_auroc", "novel_lo", "novel_hi", "Max Tanimoto to train < 0.5 (42 molecules)")]):
+            ("novel_auroc", "novel_lo", "novel_hi", "Max Tanimoto to train < 0.5 (42 molecules, 6 actives)")]):
         for lam, g in d.groupby("lam"):
             c, lab = style.get(lam, ("#777", str(lam)))
             g = g.sort_values("epoch")
@@ -137,7 +137,7 @@ def fig_forgetting():
         ax.set_xticks(sorted(d.epoch.unique()))
     axes[0].set_ylabel("test AUROC")
     axes[0].legend(frameon=False, fontsize=8, loc="lower right")
-    fig.suptitle("Fine-tuning buys familiar chemistry and spends unfamiliar chemistry", fontsize=11)
+    fig.suptitle("Overall accuracy rises; the unfamiliar-chemistry curve is noise", fontsize=11)
     fig.tight_layout()
     fig.savefig(f"{OUT}/forgetting.png", dpi=160)
 

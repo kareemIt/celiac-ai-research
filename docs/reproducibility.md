@@ -122,3 +122,12 @@ whose previous conclusion was destroyed by its own noise.
   per-seed test was always meant to isolate. **Replicates are therefore unnecessary**, and λ = 0
   versus λ = 1 becomes a clean comparison of the objective alone.
 - Everything measured before today keeps its numbers; what changes is that new runs are repeatable.
+
+## What the deterministic rerun found
+
+The λ = 0 versus λ = 1 comparison was repeated under this regime, 10 seeds each, identical splits
+(`--tag det_kl0` / `det_kl1`). With the noise floor at exactly zero, the anchors give **+0.038
+overall AUROC, 8/10 seeds, p = 0.127** — still not significant, now for an honest reason: the
+remaining uncertainty is test-set sampling, not the machine. The novel-chemistry effect is
+inconclusive (+0.035, CI [−0.107, +0.225]) and the forgetting the experiment set out to prevent did
+not reproduce. Full result in [`forgetting.md`](forgetting.md); KL experiments are stopped.
