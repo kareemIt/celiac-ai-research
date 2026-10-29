@@ -1,0 +1,8 @@
+section,paired_molecules,publications,largest_paper_share,median_log_sel,n_10x,n_100x,n_10x_wrong_way,n,paper_a,paper_b,n_a,n_b,shared_scaffolds,median_tanimoto_b_to_a,test,rmse,baseline_rmse,spearman
+inventory,147.0,7.0,0.46938775510204084,,,,,,,,,,,,,,,
+measured_selectivity,,,,0.151267675330649,20.0,8.0,10.0,147.0,,,,,,,,,,
+transfer_setup,,,,,,,,,CHEMBL2086255,CHEMBL5729393,69.0,57.0,0.0,0.1596638709306717,,,,
+model,,,,,,,,69.0,,,,,,,within_CHEMBL2086255,0.5148582304330795,0.63426382814774,0.5591311417243223
+model,,,,,,,,57.0,,,,,,,within_CHEMBL5729393,0.6238647252634222,0.8270624182776642,0.5225493856342805
+model,,,,,,,,57.0,,,,,,,A_to_B,0.8348954312448589,1.0376692479126552,0.28922418990710486
+model,,,,,,,,69.0,,,,,,,B_to_A,0.905175345621766,0.8916366008823009,-0.05340324676170861
