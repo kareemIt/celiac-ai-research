@@ -43,7 +43,7 @@ WARHEADS = {
     "acrylamide": "C=CC(=O)N",
     "chloroacetamide": "ClCC(=O)N",
     "epoxide": "C1CO1",
-    "dihydroisoxazole": "C1CNO1",
+    "dihydroisoxazole": "C1=NOCC1",  # 4,5-dihydroisoxazole: a 5-ring. C1CNO1 is a 4-ring and matches nothing.
     "maleimide": "O=C1C=CC(=O)N1",
     "vinyl sulfone": "C=CS(=O)=O",
     "nitrile": "C#N",

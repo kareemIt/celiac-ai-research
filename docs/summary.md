@@ -153,6 +153,7 @@ That discarded data was audited and tested ([`covalent.md`](covalent.md)):
 - [`selectivity.md`](selectivity.md) — TG2 against FXIII-A: can we predict selectivity? **No**
 - [`covalent.md`](covalent.md) — kinact/Ki: can we predict covalent efficiency? **Not across labs**
 - [`second_target.md`](second_target.md) — do the evaluation failures reproduce on CDK2? **Three of four**
+- [`screening_prep.md`](screening_prep.md) — TG2 data discovery, unit recovery and screening feasibility
 - [`reproducibility.md`](reproducibility.md) — why two identical runs disagreed, and what fixed it
 - [`uncertainty.md`](uncertainty.md) — ensembles, conformal, selective prediction
 - [`candidates.md`](candidates.md) — screening methodology and the shortlist
