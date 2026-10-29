@@ -9,8 +9,10 @@ All computation performed locally on one RTX 5070 Ti. No hosted model APIs, no c
 
 Tissue transglutaminase 2 (TG2) deamidates gluten peptides into the forms that trigger the
 autoimmune response in celiac disease, which makes it the central small-molecule target for a
-non-dietary therapy. No TG2 inhibitor has reached the clinic: GSK3915393 was discontinued in phase 1
-when GSK ended its celiac programme.
+non-dietary therapy. TG2 inhibition has clinical proof of concept: ZED1227 beat placebo on villus
+height-to-crypt depth ratio in a randomized 163-patient trial (Schuppan et al., NEJM
+2021;385:35-45). None is approved, and GSK3915393 completed phase 1 (NCT04604795) before being
+removed from GSK's celiac pipeline without a published reason.
 
 The question this project asks is narrow and answerable:
 

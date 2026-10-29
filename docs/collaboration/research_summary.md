@@ -7,8 +7,9 @@
 
 Tissue transglutaminase 2 (TG2) deamidates gluten peptides into the forms that trigger the
 autoimmune response in celiac disease. The target is clinically credible: **ZED1227**, a covalent
-TG2 inhibitor, reduced gluten-induced mucosal damage against placebo in a 160-patient phase 2a
-trial (Schuppan et al., *NEJM* 2021, doi:10.1056/NEJMoa2032441). A separate programme compound,
+TG2 inhibitor, reduced gluten-induced mucosal damage against placebo in a randomized trial of 163
+patients (Schuppan et al., *NEJM* 2021;385:35–45, doi:10.1056/NEJMoa2032441; the authors describe
+it as a proof-of-concept trial). A separate programme compound,
 GSK3915393, completed phase 1 (NCT04604795) and was removed from GSK's celiac pipeline without a
 published reason.
 

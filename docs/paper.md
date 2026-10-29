@@ -65,11 +65,18 @@ into higher-affinity ligands for HLA-DQ2/DQ8 and thereby triggering the gluten-s
 response. Inhibiting TG2 is therefore among the most direct pharmacological interventions available
 in principle [1, 17].
 
-No TG2 inhibitor has reached the clinic. GSK3915393 completed a Phase 1 safety and
-pharmacokinetics study in healthy volunteers (NCT04604795) and was subsequently removed from GSK's
-celiac pipeline; the company has not published a reason, and we do not speculate about one [16].
-The gap between target validation and a clinical candidate is wide enough that computational
-prioritisation is worth attempting.
+**TG2 inhibition has clinical proof of concept.** ZED1227, a covalent TG2 inhibitor, was tested
+against placebo in 163 patients with celiac disease undergoing a 6-week gluten challenge, and met
+its primary endpoint: the change in villus-height-to-crypt-depth ratio relative to placebo was 0.44
+(95% CI 0.15 to 0.73) at 10 mg and 0.48 (95% CI 0.20 to 0.77) at 100 mg [20]. The authors describe
+it as a proof-of-concept trial. No TG2 inhibitor has yet been approved, and not every programme has
+progressed — GSK3915393 completed a Phase 1 study in healthy volunteers (NCT04604795) and was
+subsequently removed from GSK's celiac pipeline, with no reason published [16].
+
+So the target is pharmacologically validated in humans while the chemical space remains thin, which
+is the gap computational prioritisation might narrow. It also raises the stakes on selectivity: a
+drug taken chronically by otherwise-healthy people must not inhibit Factor XIII-A, which crosslinks
+fibrin (§6).
 
 ### 1.2 The question we set out to answer
 
@@ -884,6 +891,9 @@ PubMed or arXiv records during preparation of this draft.
     (PAINS) from screening libraries. *Journal of Medicinal Chemistry* 2010;53(7):2719–2740.
 19. Brenk R, Schipani A, James D, et al. Lessons learnt from assembling screening libraries for drug
     discovery for neglected diseases. *ChemMedChem* 2008;3(3):435–444.
+20. ✓ Schuppan D, Mäki M, Lundin KEA, et al. A randomized trial of a transglutaminase 2 inhibitor
+    for celiac disease. *New England Journal of Medicine* 2021;385(1):35–45.
+    doi:10.1056/NEJMoa2032441. PMID 34192430.
 
 ---
 

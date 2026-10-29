@@ -39,7 +39,8 @@ behind it. This is the central finding of Phase 4 and it is a negative one.
 The reason is chemical, not statistical. The TG2 training set is dominated by covalent
 peptidomimetic inhibitors — acrylamides, chloroacetamides, 3-halo-dihydroisoxazoles — a chemotype
 almost absent from the approved pharmacopoeia. Known TG2 inhibitor development is also in that
-space: GSK3915393 reached phase 1 and was discontinued when GSK dropped celiac
+space: ZED1227 met its primary endpoint against placebo in 163 patients (NEJM
+2021;385:35-45), while GSK3915393 reached phase 1 and was dropped when GSK left celiac
 (Wichka & Lai, *CSBJ* 2024).
 
 For completeness, the unfiltered model output: 35 of 2,414 drugs score p ≥ 0.5, 7 have unanimous
