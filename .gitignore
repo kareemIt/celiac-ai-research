@@ -24,3 +24,6 @@ results_v1_preaudit/
 .env
 *.token
 .huggingface/
+
+# scratch folds handed to the per-model virtualenvs by scripts/run_sota.py
+results/_sota_tmp/
