@@ -121,7 +121,7 @@ cleanest provenance of any pretrained model in this review.
 |---|---|
 | Papers | Chithrananda S, Grand G, Ramsundar B, *ChemBERTa: Large-Scale Self-Supervised Pretraining for Molecular Property Prediction*, arXiv:2010.09885 (2020). Ahmad W, Simon E, Chithrananda S, Grand G, Ramsundar B, *ChemBERTa-2: Towards Chemical Foundation Models*, arXiv:2209.01712 (Sep 2022) |
 | Implementation | HuggingFace `DeepChem/ChemBERTa-77M-MLM` and `DeepChem/ChemBERTa-77M-MTR`; DeepChem ecosystem |
-| Representation | SMILES string, RoBERTa encoder (~83M params at the standard config) |
+| Representation | SMILES string, RoBERTa encoder, hidden size 384 — **3.4M parameters** in the released checkpoint (corrected 2026-11-03: the "77M" in the model name is the pretraining molecule count, not a parameter count, and an earlier draft of this document wrongly reported ~83M params) |
 | Pretraining | Up to **77M PubChem compounds**; masked language modelling (MLM) compared against multi-task regression (MTR) on computed properties, with MTR generally better |
 | Binary classification | Yes — `AutoModelForSequenceClassification` with 2 labels, or a frozen pooled embedding plus a head |
 
@@ -133,8 +133,8 @@ sensitive to canonicalization, and it has no notion of 3D structure.
 
 **Difference from our approaches.** This is the direct, domain-matched counterpart to our Qwen
 experiment: both read SMILES as text, both are transformers. The variables are pretraining corpus
-(77M molecules against a general text corpus), scale (83M against 9B) and objective (MLM/MTR on
-chemistry against next-token on everything). If ChemBERTa-2 beats our QLoRA Qwen on the same splits,
+(77M molecules against a general text corpus), scale (**3.4M against 9B — a factor of 2,600**) and
+objective (MLM/MTR on chemistry against next-token on everything). If ChemBERTa-2 beats our QLoRA Qwen on the same splits,
 the honest conclusion is that domain pretraining matters more than scale at this data size; if it
 does not, that is evidence about the data rather than about either model.
 
@@ -225,7 +225,7 @@ must exclude on provenance grounds. That is itself worth saying in any write-up.
 | **Qwen3.5-9B QLoRA (ours)** | SMILES text | general web/text | 9B base, 43M LoRA | yes, Jev readout | loses to RF by 0.049 on our data | yes — 7.98 GiB peak, ~7 min/seed |
 | Chemprop v2 D-MPNN | 2D graph | none | ~1–2M | yes | 32% Polaris win rate against RF's 68% | yes, seconds–minutes |
 | **CheMeleon** | 2D graph | computed descriptors | ~10M | yes | **75% Polaris, 97% MoleculeACE** | yes, minutes |
-| ChemBERTa-2 | SMILES | 77M PubChem | ~83M | yes | ≈ ECFP (Praski) | yes, a full fine-tune fits easily |
+| ChemBERTa-2 | SMILES | 77M PubChem | 3.4M | yes | ≈ ECFP (Praski) | yes, a full fine-tune fits easily |
 | MoLFormer-XL (10pct) | SMILES | 1.1B PubChem+ZINC | ~47M | yes | worse than ECFP (Praski) | yes, frozen or fine-tuned |
 | Uni-Mol | 3D conformer | 209M conformations | ~48M | yes | worse than ECFP (Praski) | yes, but see §4.1 |
 | Tabular FM (TabPFN-class) | descriptor table | synthetic tables | ~10M | yes | up to 100% MoleculeACE win rate | yes, CPU, seconds |
@@ -594,3 +594,157 @@ peer-reviewed at the time of writing, and marked as such wherever they are used 
 before they appear in a manuscript. Reported figures that came only from third-party aggregator
 pages — notably the ChemBERTa-2 MoleculeNet table — are deliberately **not** quoted anywhere in this
 document.
+
+---
+
+# Addendum, 2026-11-03: implementation record
+
+Everything above is the protocol as proposed and approved. This section records what changed when it
+met the data and the software, written before the headline results were read. Results themselves
+live in [`sota_comparison.md`](sota_comparison.md); this is only the record of deviations.
+
+## Corrections to the review above
+
+**ChemBERTa-2's size.** Corrected in place. The released `DeepChem/ChemBERTa-77M-MTR` checkpoint has
+**3.4M parameters** (hidden size 384); the "77M" is the pretraining molecule count. The earlier
+figure of ~83M was wrong. This sharpens the comparison rather than weakening it: the domain-matched
+transformer is 2,600x smaller than our Qwen3.5-9B, not 100x.
+
+## Protocol deviations, with reasons
+
+**1. The publication split is leave-one-publication-out, not a random group split.** The proposal
+assumed a `group_split` over `document_chembl_id` with 20 seeds. TG2 has only **17 attributable
+publications**, and the largest seven hold 394 of 460 molecules. A random 80/10/10 over 17 groups
+produced test folds of 1 to 45 molecules and left **4 of 20 seeds with a single-class test fold**,
+where AUROC does not exist. Replaced with leave-one-publication-out over the 11 publications
+contributing at least 10 labelled molecules -- the same criterion `scripts/run_second_target.py`
+used -- giving **444 molecules, 11 folds, every molecule tested exactly once** and no seed to average
+over. Validation inside each fold is a scaffold slice of the *remaining* publications, so the
+held-out paper contributes nothing to tuning or early stopping. One of the 11 papers reports only
+potent molecules, so its fold yields no AUROC; that is pinned in a test rather than dropped silently.
+
+**2. Both publication arms cover the same 444 molecules.** `scaffold_pub` is a scaffold split of
+exactly the LOPO molecule set, so splitting strategy is the only variable between the two arms. The
+proposal would have compared 460 molecules against 631.
+
+**3. Selection is on validation AUROC, not validation Brier.** The proposal argued for Brier, to
+avoid selecting on the headline metric. But `scripts/run_tuned_baselines.py` selects on validation
+AUROC, and its 0.898 +- 0.057 is the number every entrant is compared against. Matching the incumbent
+was judged more important than the original choice, since a baseline tuned under a different rule is
+not the published baseline. Validation Brier is recorded for every fold, so the effect of this choice
+can be checked later without re-running anything.
+
+**4. The budget is 12 configurations for the new entrants; the incumbents keep their own grids.**
+The existing tuned random forest grid is exactly 12, XGBoost's is 8 and logistic regression's is 4.
+Those were not enlarged, because enlarging them would change a published number. `n_configs` is
+recorded per row, so the asymmetry is visible in the results rather than buried. It favours the new
+entrants slightly, which is the safe direction for a study asking whether they beat the baseline.
+
+**5. Grids cover different axes per model, at equal size.** Chemprop learns its representation from
+scratch, so its 12 configurations vary depth, width and dropout. CheMeleon's block arrives pretrained
+at d_h=2048, depth=6, so its 12 vary the learning rate and the readout -- chemprop's default
+`max_lr` of 1e-3 was destroying the pretrained weights (AUROC 0.789 at Brier 0.378, worse calibration
+than the trivial prior). Tuning the thing that matters for each model, at the same budget, is fairer
+than forcing one axis set on all of them, but it is a judgement call and it is recorded as one.
+
+**6. TabPFN runs at version 2.2.1, with PCA-reduced fingerprints.** Two constraints, neither
+anticipated:
+
+- The current release (9.2.0) will not download its weights without a Prior Labs account and an
+  interactive license acceptance. Creating a third-party account on the user's behalf is out of
+  scope, so the openly published **2.2.1** is used instead. The version is recorded; a reader who
+  wants the current model must accept that license themselves.
+- TabPFN documents a **500-feature limit**, and a 2048-bit Morgan fingerprint exceeds it. Rather
+  than pass `ignore_pretraining_limits=True` and test the model outside its stated envelope, the
+  fingerprint is reduced by **PCA fitted on the training fold only** (the treatment this project
+  already applies to GDSC2 expression features). Its three feature blocks are therefore the raw
+  RDKit 2D descriptors, Morgan-PCA-256, and the two concatenated. This also matches
+  arXiv:2604.16123, which used compact descriptor blocks for the same reason.
+- Consequence: TabPFN gets **3 configurations**, not 12, because the feature block is the only knob
+  an in-context model exposes. Recorded, not padded.
+
+**7. ChemBERTa-2's 12 configurations are computed with 4 training runs.** Four learning rates by
+three epoch budgets, where a run to 40 epochs passes through 10 and 20 on the way, so each rate is
+trained once and scored at each budget. Identical to 12 separate runs given the seed, at a third of
+the cost.
+
+## Two bugs found, and what they were worth
+
+**Lightning's `EarlyStopping` does not restore the best weights.** It stops training; it does not
+roll back. Predicting straight after `fit()` therefore scores a model up to `patience` epochs past
+its best validation loss. This is what made CheMeleon look catastrophically miscalibrated
+(Brier 0.378). Fixed with a `ModelCheckpoint` on `val_loss` reloaded before prediction; Chemprop's
+seed 0 moved 0.823 to 0.851 AUROC. **Any result produced before this fix was wrong and none is
+reported.**
+
+**`batch_norm` was forced on.** It is opt-in in chemprop's own CLI, which pairs it with
+`drop_last=True` on the training loader. Off now, matching chemprop's defaults.
+
+Both were caught by refusing to accept a first number that looked implausible -- a Brier worse than a
+constant predictor is not a result, it is a bug report.
+
+## The leakage audit, and one assumption it overturned
+
+`scripts/audit_sota_leakage.py`, output in `results/sota_leakage.csv`.
+
+The protocol asserted that "the TG2 prompts carry SMILES only" and should be confirmed in code. **It
+was wrong.** `scripts/run_jev_qlora.py` builds each prompt as `Compound SMILES: ...` plus
+`Compound name: ...` whenever the PubChem export records a name, which it does for **398 of 631
+molecules (63.1%)**. That is exactly the retrieval channel [`qwen_probe.md`](qwen_probe.md) warned
+about on GDSC2, and it had been live in the TG2 experiments all along.
+
+The audit then shows the channel is narrow:
+
+| | |
+|---|---|
+| molecules whose prompt carries a name | 398 (63.1%) |
+| names that are systematic IUPAC-style | 384 (96.5% of named) |
+| names that are trivial or code-like | **14 (2.2% of the set)** |
+
+A systematic name is a redescription of the structure -- a model reading
+`4-[4-(prop-2-enoylamino)piperidin-1-yl]sulfonyl...` learns nothing it could not read off the SMILES.
+A trivial or code name is a retrieval key into the literature. Only 14 molecules carry one, they are
+ordinary chemical names (Isatin, Indirubin, 5-Bromoisatin, two bare `CID NNNNNN` strings and one
+registry hash), and **none is a recognised TG2 clinical compound identifier**. Independently,
+`results/jev_probe_combined.log` records that adding names to the zero-shot prompt moved AUROC from
+0.648 to 0.651 -- no measurable retrieval benefit.
+
+So the finding is: the assumption in the protocol was false, the channel is real, and the exposure is
+small enough not to qualify the existing Qwen results. That is worth more than if the assumption had
+simply held, and it is what an audit exists to find.
+
+**Still not done:** the direct label-leakage probe (asking base Qwen for each molecule's IC50 as a
+number and correlating with truth). It audits an existing result rather than a new model, and it
+needs the 19 GB checkpoint and the GPU the comparison is using. It remains the single most valuable
+follow-up and is listed as such.
+
+## Verification in place
+
+| test file | what it pins |
+|---|---|
+| `tests/test_sota_splits.py` | every exported fold re-derived from `src.data.chem` and compared row for row; no scaffold or publication crosses a fold; LOPO tests each molecule exactly once; both publication arms cover the same molecules; the export is deterministic |
+| `tests/test_sota_reproduction.py` | the harness reproduces `results/tuned_baselines_tg2.csv` per seed; every entrant's `n_configs` is recorded and capped; predictions cover the exported test fold and nothing else |
+
+The reproduction gate passed exactly before any new model was run: random forest 0.898 +- 0.057
+identical to 1e-16, XGBoost 0.882 +- 0.065 to 1e-8 (float32 leaf sums), logistic regression
+0.873 +- 0.081 to 0. The one discrepancy found on the way -- a float32 cast of the fingerprint moving
+logistic regression's Brier by 3e-5 -- was fixed rather than tolerated.
+
+`scripts/analyse_sota.py` independently reproduces the paper's QLoRA-against-RF comparison
+(dAUROC -0.049, 95% CI [-0.076, -0.021], matching the abstract of [`paper.md`](paper.md)), which
+validates the paired statistics against a published result before any new model is compared with
+them.
+
+## Environment of record
+
+| | |
+|---|---|
+| GPU | RTX 5070 Ti, 15.89 GiB usable, compute capability 12.0 (Blackwell, sm_120) |
+| Project `.venv` | Python 3.12.16, torch 2.14.1+cu130, transformers 5.21.0, rdkit 2026.09.1, scikit-learn 1.9.1, numpy 2.5.4 -- runs the baselines, ChemBERTa-2 and MoLFormer |
+| `~/sota-envs/chemprop` | chemprop 2.3.1, torch 2.15.0+cu132, lightning 2.6.6 -- runs Chemprop and CheMeleon |
+| `~/sota-envs/tabpfn` | tabpfn 2.2.1, torch 2.15.0+cu132, scikit-learn **1.6.1** -- runs TabPFN |
+| CheMeleon weights | `chemeleon_mp.pt`, Zenodo record 15460715, cached at `~/.chemprop/` |
+
+The scikit-learn downgrade in the TabPFN environment is the reason the environments are separate:
+installing TabPFN into the project `.venv` would have moved scikit-learn under the existing random
+forest and QLoRA results. Nothing in `requirements.txt` changed.

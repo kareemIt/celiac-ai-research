@@ -326,7 +326,9 @@ def load_folds(split, seeds, path=SPLITS):
         order = {"train": 0, "valid": 1, "test": 2}
         g = g.assign(_o=g.fold.map(order)).sort_values(["_o"], kind="stable").reset_index(drop=True)
         idx = tuple(np.where(g.fold.to_numpy() == f)[0] for f in ("train", "valid", "test"))
-        yield {"split": split, "seed": seed, "smiles": g["smiles"].tolist(),
+        # int(), not the numpy int64 pandas gives: torch.manual_seed rejects it with
+        # "an integer is required", which only shows up inside an entrant that seeds torch
+        yield {"split": split, "seed": int(seed), "smiles": g["smiles"].tolist(),
                "y": g["y"].to_numpy(), "idx": idx,
                "paper": g["held_out_paper"].iloc[0] if "held_out_paper" in g else np.nan}
 
