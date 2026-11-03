@@ -1,0 +1,15 @@
+smiles,name,y
+C=CC(=O)NCCCCC(NC(=O)OCc1ccccc1)C(=O)N1CCN(c2ccc(C(F)(F)F)cn2)CC1,CID 71453979,1
+C=CC(=O)NCCCCC(NC(=O)OCc1ccccc1)C(=O)N1CCN(c2ncccc2C(F)(F)F)CC1,CID 71450342,1
+C=CC(=O)Nc1ccc(C)cc1,p-Acrylotoluidide,0
+C=CC(=O)Nc1ccccc1,N-Phenylacrylamide,0
+CCC(CC)CNC(=O)Cn1cccc(NC(=O)C(CCC=CC(=O)OC)NC(=O)c2cncn2C)c1=O,T4SR539Ykf,1
+O=C1C(=O)N(CN2C(=O)C(=O)c3ccccc32)c2ccccc21,"N,N'-Methylenediisatin",0
+O=C1N=c2ccccc2=C1c1c(O)[nH]c2ccccc12,Isoindigotin,0
+O=C1Nc2c(F)cc(F)cc2C1=O,"5,7-Difluoroindoline-2,3-dione",0
+O=C1Nc2ccc(Br)cc2C1=O,5-Bromoisatin,0
+O=C1Nc2ccc(Cc3ccc4c(c3)C(=O)C(=O)N4)cc2C1=O,"5,5''-Methylenediindoline-2,3-dione",0
+O=C1Nc2ccc(Cl)cc2C1=O,"5-Chloro-1H-indole-2,3-dione",0
+O=C1Nc2ccc(I)cc2C1=O,5-Iodoisatin,0
+O=C1C(c2c(O)[nH]c3ccccc23)=Nc2ccccc21,Indirubin,0
+O=C1Nc2ccccc2C1=O,Isatin,0

@@ -203,31 +203,35 @@ def fit_chemberta_ft(name, fold, seed):
                 out.append(lo.softmax(-1)[:, 1].float().cpu())
         return torch.cat(out).numpy()
 
+    # 12 configurations = 4 learning rates x 3 epoch budgets, but a run to 40 epochs passes through
+    # 10 and 20 on the way, so each rate is trained once and scored at each budget. Identical to 12
+    # separate runs given the seed, at a third of the cost.
+    budgets = (10, 20, 40)
     best, n_params = None, np.nan
     for lr in (1e-5, 3e-5, 1e-4, 3e-4):
-        for epochs in (10, 20, 40):
-            torch.manual_seed(seed)
-            model = AutoModelForSequenceClassification.from_pretrained(ckpt, num_labels=2).to(dev)
-            n_params = sum(p.numel() for p in model.parameters())
-            opt = torch.optim.AdamW(model.parameters(), lr=lr)
-            loader = DataLoader(TensorDataset(ids[tr], mask[tr], y[tr]), batch_size=32,
-                                shuffle=True, generator=torch.Generator().manual_seed(seed))
+        torch.manual_seed(seed)
+        model = AutoModelForSequenceClassification.from_pretrained(ckpt, num_labels=2).to(dev)
+        n_params = sum(p.numel() for p in model.parameters())
+        opt = torch.optim.AdamW(model.parameters(), lr=lr)
+        loader = DataLoader(TensorDataset(ids[tr], mask[tr], y[tr]), batch_size=32, shuffle=True,
+                            generator=torch.Generator().manual_seed(seed))
+        for epoch in range(1, max(budgets) + 1):
             model.train()
-            for _ in range(epochs):
-                for bi, bm, by in loader:
-                    opt.zero_grad()
-                    model(input_ids=bi.to(dev), attention_mask=bm.to(dev),
-                          labels=by.to(dev)).loss.backward()
-                    opt.step()
-            score = _valid_score(y[va].numpy(), probs(model, va))
-            if best is None or score[0] > best[0][0]:
-                best = (score, f"lr={lr}, epochs={epochs}", probs(model, te))
-            del model, opt
-            if _cuda():
-                torch.cuda.empty_cache()
+            for bi, bm, by in loader:
+                opt.zero_grad()
+                model(input_ids=bi.to(dev), attention_mask=bm.to(dev),
+                      labels=by.to(dev)).loss.backward()
+                opt.step()
+            if epoch in budgets:
+                score = _valid_score(y[va].numpy(), probs(model, va))
+                if best is None or score[0] > best[0][0]:
+                    best = (score, f"lr={lr}, epochs={epoch}", probs(model, te))
+        del model, opt
+        if _cuda():
+            torch.cuda.empty_cache()
     (va_auc, va_brier), cfg, p_test = best
     return p_test, {"valid_auroc": va_auc, "valid_brier": va_brier, "config": cfg,
-                    "n_configs": 12, "features": ckpt, "n_params": n_params}
+                    "n_configs": len(budgets) * 4, "features": ckpt, "n_params": n_params}
 
 
 def fit_subprocess(name, fold, seed):

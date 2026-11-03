@@ -1,0 +1,21 @@
+section,item,value,note,model,corpus,saw_structures,saw_computed_properties,saw_experimental_activity
+corpus,molecules evaluated,631.0,,,,,,
+corpus,provably in PubChem (carry a CID),398.0,so in ChemBERTa-2's and MoLFormer's corpora by construction,,,,,
+corpus,present in ChEMBL's TG2 target file,460.0,ChEMBL is not a pretraining corpus for any entrant here,,,,,
+corpus,auditable against the actual pretraining corpora,0.0,"77M/1.1B corpora are not downloadable locally; membership is inferred, not measured",,,,,
+prompt,molecules whose prompt carries a compound name,398.0,63.1% of the set,,,,,
+prompt,names that are systematic (IUPAC-style),384.0,"96.5% of named; a redescription of the structure, not a retrieval key",,,,,
+prompt,names that are trivial or code-like,14.0,2.2% of the set; the only name-based retrieval channel,,,,,
+provenance,,,,logreg,none,no,no,no
+provenance,,,,rf,none,no,no,no
+provenance,,,,xgb,none,no,no,no
+provenance,,,,chemprop,none,no,no,no
+provenance,,,,chemprop_rdkit,none,no,no,no
+provenance,,,,tabpfn,synthetic tabular data,no,no,no
+provenance,,,,chemeleon,computed molecular descriptors,likely,yes,no
+provenance,,,,chemberta_frozen,77M PubChem compounds (MTR),likely,yes,no
+provenance,,,,chemberta_ft,77M PubChem compounds (MTR),likely,yes,no
+provenance,,,,molformer_frozen,1.1B PubChem+ZINC (MLM),likely,no,no
+provenance,,,,jev_qlora,general web/text corpus,"likely, as text",n/a,possible: the papers
+provenance,,,,jev_zeroshot,general web/text corpus,"likely, as text",n/a,possible: the papers
+provenance,,,,clamp (excluded),PubChem assay data,yes,n/a,yes
