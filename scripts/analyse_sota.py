@@ -24,6 +24,7 @@ SOTA = "results/sota_tg2.csv"
 PREDS = "results/sota_preds.csv"
 SPLITS = "results/splits_tg2.csv"
 FIGDIR = "results/figures"
+TARGETS = {"tg2": "TG2", "cdk2": "CDK2", "maob": "MAO-B"}
 
 METRICS = ["auroc", "auprc", "mcc", "ece", "brier", "logloss"]
 HIGHER_BETTER = {"auroc", "auprc", "mcc"}
@@ -46,11 +47,15 @@ LABELS = {
 ORDER = list(LABELS)
 
 
-def load(split):
-    """New entrants for this split, plus the incumbents where the split matches theirs."""
-    d = pd.read_csv(SOTA)
+def load(split, sota=SOTA, incumbents=True):
+    """New entrants for this split, plus the incumbents where the split matches theirs.
+
+    Incumbents are TG2-only: the Qwen runs exist for no other target, so a replication target
+    loads its entrants alone rather than silently comparing against another target's numbers.
+    """
+    d = pd.read_csv(sota)
     d = d[d.split == split].copy()
-    if split == "scaffold":
+    if split == "scaffold" and incumbents:
         for path, model, name in INCUMBENTS:
             if not os.path.exists(path):
                 continue
@@ -128,7 +133,8 @@ def holm(out, metric="auroc"):
     return out
 
 
-def bands(split, edges=(0.0, 0.4, 0.5, 0.6, 0.7, 1.01)):
+def bands(split, preds_path=PREDS, splits_path=SPLITS,
+          edges=(0.0, 0.4, 0.5, 0.6, 0.7, 1.01)):
     """AUROC inside maximum-Tanimoto-to-training bands, one row per molecule per model.
 
     Pooled per molecule, never per prediction: docs/forgetting.md records how pooling across
@@ -139,11 +145,11 @@ def bands(split, edges=(0.0, 0.4, 0.5, 0.6, 0.7, 1.01)):
     from rdkit import Chem
     from sklearn.metrics import roc_auc_score
 
-    preds = pd.read_csv(PREDS)
+    preds = pd.read_csv(preds_path)
     preds = preds[preds.split == split]
     if preds.empty:
         return pd.DataFrame()
-    sp = pd.read_csv(SPLITS)
+    sp = pd.read_csv(splits_path, low_memory=False)
     sp = sp[sp.split_kind == split]
 
     gen = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
@@ -170,7 +176,7 @@ def bands(split, edges=(0.0, 0.4, 0.5, 0.6, 0.7, 1.01)):
     return pd.DataFrame(rows)
 
 
-def figures(d, pair, band_table, split):
+def figures(d, pair, band_table, split, stem="sota"):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -193,7 +199,7 @@ def figures(d, pair, band_table, split):
         ax.grid(axis="y", alpha=0.3)
     fig.suptitle(f"TG2 potency, {split} split — per-fold distribution")
     fig.tight_layout()
-    fig.savefig(f"{FIGDIR}/sota_comparison_{split}.png", dpi=150)
+    fig.savefig(f"{FIGDIR}/{stem}_comparison_{split}.png", dpi=150)
     plt.close(fig)
 
     # 2. accuracy against calibration: the two do not improve together
@@ -210,7 +216,7 @@ def figures(d, pair, band_table, split):
     ax.set_title(f"Ranking skill against calibration, {split} split")
     ax.grid(alpha=0.3)
     fig.tight_layout()
-    fig.savefig(f"{FIGDIR}/sota_calibration_{split}.png", dpi=150)
+    fig.savefig(f"{FIGDIR}/{stem}_calibration_{split}.png", dpi=150)
     plt.close(fig)
 
     # 3. where each model stops working
@@ -231,24 +237,30 @@ def figures(d, pair, band_table, split):
         ax.legend(fontsize=7, ncol=2)
         ax.grid(alpha=0.3)
         fig.tight_layout()
-        fig.savefig(f"{FIGDIR}/sota_generalization_{split}.png", dpi=150)
+        fig.savefig(f"{FIGDIR}/{stem}_generalization_{split}.png", dpi=150)
         plt.close(fig)
-    print(f"-> {FIGDIR}/sota_{{comparison,calibration,generalization}}_{split}.png")
+    print(f"-> {FIGDIR}/{stem}_{{comparison,calibration,generalization}}_{split}.png")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--split", default="scaffold",
-                    choices=["scaffold", "random", "scaffold_pub", "paper_lopo"])
+                    choices=["scaffold", "random", "scaffold_pub", "paper_lopo",
+                             "paper_grouped"])
+    ap.add_argument("--target", default="tg2", choices=sorted(TARGETS))
     ap.add_argument("--figures", action="store_true")
     args = ap.parse_args()
 
-    d = load(args.split)
+    from scripts.run_sota import paths
+    splits_path, sota_path, preds_path = paths(args.target)
+    stem = "sota" if args.target == "tg2" else f"sota_{args.target}"
+
+    d = load(args.split, sota_path, incumbents=args.target == "tg2")
     if d.empty:
-        raise SystemExit(f"no results for split {args.split!r} in {SOTA}")
+        raise SystemExit(f"no results for split {args.split!r} in {sota_path}")
 
     summary = summarise(d)
-    print(f"## TG2 potency, {args.split} split\n")
+    print(f"## {TARGETS[args.target]} potency, {args.split} split\n")
     cols = ["label", "folds"] + [m for m in METRICS if m in summary]
     print(summary[cols].to_string(index=False))
 
@@ -269,7 +281,7 @@ def main():
                 print(f"    {r['model']:<18} Δ{metric} {r['mean_delta']:>+7.3f} "
                       f"[{r.ci_lo:+.3f}, {r.ci_hi:+.3f}]  p={r['p_ttest']:.3f}{star}")
 
-    band_table = bands(args.split)
+    band_table = bands(args.split, preds_path, splits_path)
     if not band_table.empty:
         print(f"\n## AUROC by similarity to the training fold (one row per molecule)\n")
         piv = band_table.pivot(index="model", columns="band", values="auroc")
@@ -287,11 +299,11 @@ def main():
     # filename would leave only whichever ran last
     for name, frame in (("summary", summary), ("paired", pair), ("bands", band_table)):
         frame.assign(split=args.split).to_csv(
-            f"results/sota_{name}_{args.split}.csv", index=False)
-    print(f"\n-> results/sota_{{summary,paired,bands}}_{args.split}.csv")
+            f"results/{stem}_{name}_{args.split}.csv", index=False)
+    print(f"\n-> results/{stem}_{{summary,paired,bands}}_{args.split}.csv")
 
     if args.figures:
-        figures(d, pair, band_table, args.split)
+        figures(d, pair, band_table, args.split, stem)
 
 
 if __name__ == "__main__":
