@@ -17,9 +17,9 @@ tuned fingerprint random forest reaches AUROC 0.898 ± 0.057 across ten Bemis–
 of 631 molecules, against 0.850 ± 0.058 for a QLoRA-fine-tuned Qwen3.5-9B (ΔAUROC −0.049, 95% CI
 [−0.076, −0.021], p = 0.007).
 
-The more durable finding is methodological. Across five experimental campaigns on this single
-target we encountered four distinct ways in which an evaluation protocol, rather than a model,
-determined the reported result, and in each case the corrected protocol reversed or dissolved the
+The more durable finding is methodological. Across eight experimental campaigns on this single
+target we encountered six distinct ways in which an evaluation protocol, or our own reading of it,
+rather than a model, determined the reported result, and in each case the corrected protocol reversed or dissolved the
 conclusion. (i) **Random-split leakage**: 38.6% of random-split test molecules have a training
 molecule with an *identical* Morgan fingerprint, inflating AUROC from 0.87 to 0.95. (ii)
 **Prediction pooling across overlapping folds**: a headline claim that the un-fine-tuned model
@@ -37,7 +37,7 @@ We additionally report that cross-reactivity is the norm in this chemical space 
 TG2-potent molecules with paired data also inhibit Factor XIII-A at 1 µM), that the transglutaminase
 family cannot expand the dataset where it is weakest, and that covalent inhibition efficiency
 (kinact/Ki) does not predict across laboratories (−0.046 log RMSE against a constant predictor, 95%
-CI [−0.101, +0.011]). We then test three of the four failures on an independent target, CDK2 (2,646 molecules, 351
+CI [−0.101, +0.011]). We then test three of the first four failures on an independent target, CDK2 (2,646 molecules, 351
 publications, chemically unrelated to TG2) and again on MAO-B (5,840 molecules, 586 publications).
 All three reproduce in direction and mechanism while differing in magnitude, and both independent
 targets agree that the publication split costs more than the scaffold split. Publication-level confounding reproduces most strongly, costing more than
@@ -45,9 +45,28 @@ scaffold splitting (AUROC 0.898 → 0.830) on a large, diverse dataset whose pos
 across hundreds of papers — contrary to our own pre-registered prediction that it would not appear
 there. The second target also corrects us: TG2's finding that models rank at chance below 0.4
 Tanimoto does **not** generalise, as CDK2 retains AUROC 0.739 in that regime, so the applicability
-floor is a per-dataset quantity rather than a constant. We distinguish throughout between
-statistically supported findings, inconclusive results and withdrawn hypotheses, and we claim a
-two-target case study rather than a general law.
+floor is a per-dataset quantity rather than a constant.
+
+Three later campaigns extend the picture and add two failures of different kinds. **A nine-entrant
+state-of-the-art comparison** — Chemprop, CheMeleon, ChemBERTa-2, MoLFormer-XL and a tabular
+foundation model against the tuned baselines — finds that **no specialized molecular model beats the
+random forest** under scaffold evaluation (best Δ −0.033, Holm p = 0.045), while on the same 444
+molecules the publication-held-out arm costs every model 0.10–0.28 AUROC and **inverts the ranking
+inconclusively** (ChemBERTa-2 frozen Δ +0.089, 95% CI [−0.027, +0.205], every Holm p = 1.000 at 11
+folds). **A direct label-leakage probe** shows base Qwen3.5-9B holds none of these IC50 values:
+631 of 631 abstentions from SMILES alone, six distinct answers when forced to estimate, and
+re-rooting the SMILES — same molecule, different string — *improves* every metric, which recall
+cannot do. And **conformal prediction's coverage guarantee, which holds under scaffold shift, fails
+under publication shift with the same calibration recipe** (0.784 against a 0.90 target), while
+calibrating on held-out publications restores it (0.914, Δ +0.113, p = 2.5 × 10⁻⁸) at the price of
+committing on only 15–32% of molecules and erring on 25–39% of those. The fifth failure is thus a
+method carried outside the shift it was validated under; the sixth is our own inference from a
+correlation between two components to the behaviour of their difference, which direct measurement
+refuted.
+
+We distinguish throughout between statistically supported findings, inconclusive results, withdrawn
+hypotheses and findings since scoped, and we claim a three-target case study rather than a general
+law.
 
 **Keywords:** transglutaminase 2, celiac disease, evaluation methodology, distribution shift, data
 leakage, conformal prediction, covalent inhibitors, large language models
@@ -108,12 +127,16 @@ before-and-after effect size:
 | Pooling across overlapping folds | Novel-chemistry hypothesis | +0.013 → −0.019 (hypothesis withdrawn) |
 | Training nondeterminism | KL-regularisation ablation | Noise floor −0.028 ± 0.089 → exactly 0 |
 | Publication-level confounding | Selectivity classification | AUROC 0.974 → 0.574 |
+| A guarantee carried outside its shift | Conformal calibration recipe | Coverage 0.784 → 0.914 against a 0.90 target |
+| Inferring a difference from its components | "Potency enriches cross-reactivity" | 13.6% → 46.7% gate pass rate (claim withdrawn) |
 
-These are not four instances of one problem. Leakage is about molecular redundancy; pooling is
+These are not six instances of one problem. Leakage is about molecular redundancy; pooling is
 about the independence assumption in a confidence interval; nondeterminism is about numerical
-reproducibility on GPU hardware; publication-level confounding is about where the data came from.
-Each requires a different control, and standard practice in the field addresses only the first two
-consistently.
+reproducibility on GPU hardware; publication-level confounding is about where the data came from;
+the fifth is about the scope condition attached to a distribution-free guarantee; and the sixth is
+not a protocol error at all but a reasoning error of ours, caught only by computing the quantity we
+actually cared about instead of a correlate of it. Each requires a different control, and standard
+practice in the field addresses only the first two consistently.
 
 We state explicitly that these are findings about **this dataset and this target**. We did not run
 the same analyses on other targets and we make no claim that the magnitudes transfer. What we do
@@ -509,6 +532,49 @@ Because ranking by predicted TG2 potency carries no selectivity information (0.4
 selectivity-aware shortlist was produced**; attaching a selectivity column to a candidate list would
 misstate what was measured.
 
+**A later audit of the paired measurements qualifies two of the numbers above and adds one
+*demonstrated* negative.** Details in [`selectivity_feasibility.md`](selectivity_feasibility.md).
+Units, species, assay type and censoring are clean throughout, but *assay format* is not. 57 of the
+147 within-publication pairs come from one publication that carries a single 1,643-character methods
+blob on both the TG2-target and the FXIII-A-target assay, so the record cannot state which format
+produced which number; 11 more pair purified-enzyme TG2 inhibition against FXIII-A inhibition *in
+plasma*, read out as fibrin clot formation. **79 pairs across 5 publications are format-matched with
+self-consistent descriptions, and 69 of those are one paper** — that, not 147, is the defensible
+denominator for a ratio claim.
+
+The pooled selectivity statistic is also a mixture. The two largest publications hold 126 of the 147
+pairs and have **opposite median selectivity** — +0.45 log units in a TG2-directed programme against
+−0.36 in an FXIII-A-directed programme where TG2 is the off-target being screened out (Mann–Whitney
+p = 2.3 × 10⁻⁷). A pooled median of +0.15 therefore estimates nothing about TG2 chemistry; it
+averages two opposing design objectives.
+
+**Potency and off-target potency are positively correlated — *demonstrated*.** pIC50(TG2) and
+pIC50(FXIII-A) correlate at r = +0.41 pooled and +0.49 and +0.38 within the two large publications,
+all significant. The molecules that inhibit TG2 harder also inhibit FXIII-A harder, which a shared
+catalytic cysteine and a covalent warhead predict. The tempting version of this analysis —
+correlating potency against *selectivity* and finding +0.34 — is a component artefact, because
+selectivity is defined as pIC50(TG2) − pIC50(FXIII-A) and contains the potency it is regressed on;
+every observed value lies *below* the correlation two independent enzymes with these variances would
+already produce.
+
+**The practical reading needs care, and our first one was wrong.** That correlation does not mean a
+potency-ranked cascade enriches for cross-reactivity. Because the correlation is well below 1, net
+selectivity still rises with potency: among the paired molecules the top potency decile passes a
+10-fold selectivity gate at **46.7% against a 13.6% base rate** (odds ratio 8.0, Fisher exact
+p = 0.001). The two gates agree rather than conflict. What potency-first ranking does is raise
+**absolute** off-target potency alongside the ratio, so a ratio-only gate selects compounds that are
+both more selective and more potent on FXIII-A than those it rejects — which argues for capping
+absolute off-target potency rather than for abandoning potency ranking. The enrichment is also
+concentrated in one of the two series (+21.7% against +1.1%), so it is a measured association in
+this data rather than a general rule.
+
+Feasibility of the three approaches a reviewer would propose next, each declined on the data rather
+than on preference: selectivity regression has 2 publications with ≥ 20 pairs, so its only valid
+control yields **2 transfer observations** and no interval; selectivity classification has 13
+molecules above 10-fold in the format-matched subset, 8 of them in one publication; and multi-task
+learning shares a representation across *tasks* when the binding shortage is **groups**. Within a
+single series of 69 molecules, the smallest correlation detectable at 80% power is 0.34.
+
 ### 5.8 Covalent inhibition efficiency — *not established*
 
 Most published TG2 inhibitors are covalent, and the IC50 filter discards 990 of 1,583 TG2 records.
@@ -625,12 +691,167 @@ than a small-sample artefact — and MAO-B scores 0.622 on 704 molecules. Three 
 different floors with the same qualitative trend, so no fixed similarity threshold should be
 carried between datasets. §5.6 has been qualified accordingly.
 
+### 5.10 Nine modern entrants do not beat the random forest — *demonstrated*
+
+The obvious objection to §5.2 is that it compares a language model against fingerprints and
+concludes nothing about *molecular* deep learning. We therefore ran the comparison the objection
+asks for: Chemprop v2 (D-MPNN), Chemprop with RDKit 2D descriptors, CheMeleon (descriptor-pretrained
+D-MPNN), ChemBERTa-2 frozen and fine-tuned, MoLFormer-XL frozen, and a tabular foundation model,
+against the project's three tuned baselines and both Qwen configurations. Identical splits exported
+once and re-read by every entrant, 20 seeds, a 12-configuration budget for each new entrant, and a
+reproduction gate passed before any new model ran (random forest 0.898 ± 0.057 reproduced to 1e-16).
+Full protocol and results in [`sota_comparison.md`](sota_comparison.md).
+
+**Scaffold split, primary endpoint.** The tuned random forest leads at **0.864 ± 0.077** AUROC.
+XGBoost (Δ −0.010) and logistic regression (Δ −0.015) are statistically equivalent to it, inside the
+0.05 margin fixed in advance. Every other entrant is significantly worse after Holm correction
+across eleven comparisons: ChemBERTa-2 fine-tuned −0.033 (p = 0.045), the tabular model −0.034,
+Qwen QLoRA −0.049, CheMeleon −0.062, Chemprop+RDKit −0.068, ChemBERTa-2 frozen −0.071, MoLFormer-XL
+−0.104, Chemprop −0.115, Qwen zero-shot −0.250. **No specialized molecular model beat the random
+forest on any metric.**
+
+**Why.** We offer three reasons, in decreasing confidence. (i) **Sample size governs.** 631
+molecules is below the range in which learned representations overtake fingerprints in published
+comparisons; the two entrants that arrive with a pretrained representation and fine-tune only a head
+(ChemBERTa-2) or a readout (CheMeleon) beat the two that learn a representation from scratch
+(Chemprop, −0.115), which is the ordering that hypothesis predicts. (ii) **The task is
+scaffold-local.** 96% of the scaffold-split test molecules sit above 0.4 Tanimoto to their training
+fold, where substructure matching is sufficient and a learned representation has little to add.
+(iii) **Pretraining scale does not help here, and may hurt.** MoLFormer-XL is trained on 1.1 billion
+molecules against ChemBERTa-2's 77 million, is 13× larger in parameters, and scores 0.033 *lower*
+frozen. Two SMILES transformers an order of magnitude apart in corpus size, both below fingerprints
+and the larger one lower, make this a statement about the representation class on small datasets
+rather than about one checkpoint.
+
+One result deserves its own line because it qualifies the headline. **Qwen QLoRA has the best AUPRC
+in the study, 0.896 ± 0.041**, while being significantly worse on AUROC. It ranks the top of the
+list well and the remainder poorly. Prioritising compounds is a top-of-list task, so this is a real
+qualification on "the random forest wins", not a footnote.
+
+### 5.11 The ranking inverts under publication held-out evaluation, inconclusively — *not established*
+
+Both publication arms cover **the same 444 molecules**, so splitting strategy is the only variable.
+
+| | scaffold (same 444) | publication held out | Δ |
+|---|---|---|---|
+| Random forest | 0.854 | **0.612 ± 0.178** | **−0.242** |
+| Logistic regression | 0.863 | 0.624 | −0.239 |
+| XGBoost | 0.855 | 0.573 | −0.282 |
+| ChemBERTa-2 frozen | 0.808 | **0.701 ± 0.172** | −0.107 |
+| ChemBERTa-2 fine-tuned | 0.823 | 0.675 | −0.148 |
+| Chemprop + RDKit 2D | 0.778 | 0.681 | −0.097 |
+
+**The decline has a measured mechanism rather than a conjectured one.** Under leave-one-publication-
+out, **64% of molecules fall below 0.4 Tanimoto to their training fold, against 4% under a scaffold
+split.** A publication contributes a congeneric series; holding one out removes a whole region of
+chemical space, whereas holding out a scaffold leaves the same laboratory's neighbouring scaffolds
+in the training fold. The applicability floor of §5.6 is not a different finding from the
+publication penalty — it *is* the publication penalty, seen from the molecule's side. Within the
+below-0.4 band the two protocols agree (random forest 0.729 on 283 LOPO molecules), so no model
+degrades on unfamiliar chemistry *because* of the protocol; the protocols differ in how many
+unfamiliar molecules they present.
+
+**The inversion is real and not statistically conclusive, and both halves of that sentence matter.**
+The fingerprint models fall furthest and the frozen transformer least, moving ChemBERTa-2 frozen
+from seventh to first and the random forest from first to seventh. But **every Holm-corrected p-value
+on this arm is 1.000.** Eleven folds with per-fold standard deviations of 0.15–0.26 cannot resolve a
+0.09 difference: the largest effect, ChemBERTa-2 frozen at Δ +0.089, carries a 95% interval of
+[−0.027, +0.205]. The design is the limit, not the analysis — leave-one-publication-out over 11
+publications yields 11 observations, and there is no seed to average over because every molecule is
+tested exactly once. We therefore report the inversion as a hypothesis with a stated effect size and
+decline to rank the models on this arm. Reading it as "frozen chemical language models generalize
+better across laboratories" is the interesting conclusion and is not supported by these data; it is
+testable on a target with hundreds of publications, which §5.9's CDK2 and MAO-B sets provide.
+
+### 5.12 Base Qwen does not hold the TG2 labels — *demonstrated*, with bounded scope
+
+§5.2's QLoRA result would mean something quite different if the base model had memorised these
+IC50s from the literature. We probed it directly: 631 molecules, base weights with no adapter at the
+revision the fine-tuning used, greedy decoding, five prompt arms. Full write-up in
+[`qwen_label_probe.md`](qwen_label_probe.md).
+
+| arm | answered | Spearman vs truth | distinct answers | AUROC @1 µM |
+|---|---|---|---|---|
+| SMILES only | **0 / 631** | — | 0 | — |
+| SMILES + compound name | 8 / 631 | — | **1** | 0.500 |
+| re-rooted SMILES | **0 / 631** | — | 0 | — |
+| SMILES, number forced | 631 / 631 | 0.199 | **6** | 0.581 |
+| re-rooted SMILES, number forced | 631 / 631 | **0.278** | **6** | **0.647** |
+
+Permitted to abstain the model abstains on every molecule. The eight answers in the named arm are
+all the example value printed in the prompt itself, two of them on Isatin and 5-Bromoisatin — the
+trivially-named molecules most likely to be recalled. Forced to answer it emits six distinct values
+for 631 compounds, 276 of which receive the identical `1.2 µM`.
+
+**The decisive control is re-rooting.** A re-rooted SMILES is the same molecule written from a
+different starting atom, asserted in code to round-trip to the same canonical form. Memorised text
+is keyed on the string and must degrade; chemical inference is keyed on the structure and must not.
+Re-rooting *improves* Spearman by 0.080 and AUROC by 0.067 and moves the median prediction from
+pIC50 5.96 to 8.82 — a thousandfold shift in central tendency, placing the median prediction above
+the most potent compound in the dataset. A lookup table cannot do that. The weak positive
+correlation is a two-level nanomolar/micromolar guess whose prior depends on surface form; near-exact
+agreement is 0.056 against a permutation chance rate of 0.049.
+
+**What this establishes.** Experimental-activity leakage does not explain the QLoRA result; it is
+learned from the fine-tuning data. **What it cannot establish.** One model, one revision, five
+prompts, greedy decoding. A negative probe bounds what these prompts extract and is not proof of
+absence from the pretraining corpus, which stays unauditable — **0 of 631 molecules can be checked
+against the actual corpora**, while 398 are provably in PubChem and 460 in ChEMBL's TG2 file. It
+speaks to labels, not structures. Structure familiarity points the same way by a separate argument:
+the entrants that most plausibly saw these structures during pretraining are the ones that lost, so
+structural leakage would bias §5.10 *against* its own conclusion.
+
+### 5.13 Abstention is honest under publication shift but not useful — *demonstrated*
+
+§5.6 reported conformal prediction holding 0.922 coverage against a 0.90 target under scaffold
+shift, and called it the project's clearest methodological success. That claim now has a scope
+condition. Details in [`lopo_uncertainty.md`](lopo_uncertainty.md).
+
+Eleven leave-one-publication-out folds, six entrants, with the calibration set carved from the
+**training** publications and the held-out publication's labels used only to score. Two calibration
+regimes: random training molecules, which is what §5.6's recipe implies, against whole held-out
+training publications.
+
+| | target 0.90 | target 0.80 |
+|---|---|---|
+| i.i.d. calibration | **0.784** | **0.601** |
+| publication-wise calibration | **0.914** | **0.810** |
+
+**The recipe that works under scaffold shift under-covers under publication shift**, by 0.11–0.14,
+and issues empty prediction sets — the method announcing that a molecule is unlike its calibration
+data — for up to 10% of molecules. Calibrating on whole held-out publications restores coverage at
+every α tested and emits no empty sets: **+0.113 coverage [+0.078, +0.148] paired over 66
+fold-and-model pairs, t-test p = 2.5 × 10⁻⁸, sign test p = 2.8 × 10⁻⁶**. The three fingerprint
+models fail i.i.d. calibration worst (0.691–0.806) and the two ChemBERTa-2 variants are nearly
+unaffected (0.874, 0.894), the same ordering as the AUROC decline in §5.11; we note the agreement
+and claim no mechanism. Mondrian quantiles give the same coverage with 30% more decisive answers
+and are the variant to use here.
+
+**The practical result is negative, and it is the one a screening campaign cares about.** At
+α = 0.1, publication-wise calibration answers decisively on **15–32% of molecules and is wrong on
+25–39% of those**. Marginal 90% coverage is achieved by returning both labels on two-thirds of the
+set, which concentrates the error in the decisive third. Confidence-based selective prediction,
+which cut error from 15.5% to 6.5% under scaffold shift, moves it only from **45.9% to 35.3%** here
+— at full coverage the fingerprint models are wrong on 45–47% of molecules against a 48% positive
+rate, i.e. coin-flip accuracy on an unseen publication.
+
+Two further observations. **Coverage survives where ranking does not**: in the below-0.4 Tanimoto
+band, which holds 80% of molecules on this arm, coverage stays within 0.03 of target while AUROC is
+near chance. Honesty transfers to unfamiliar chemistry and discrimination does not. And **conditional
+coverage visibly fails** — logistic regression covers 0.375 in the [0.7, 1.01] band — which is the
+guarantee conformal prediction does not make, printed rather than elided. ChemBERTa-2 frozen has the
+only usable risk–coverage curve (0.358 → 0.227) but the paired per-fold difference from the random
+forest is not significant (p = 0.63–0.91, random forest worse in 2–5 of 11 folds): the same
+inconclusive shape as §5.11, reached from an independent metric.
+
 ---
 
-## 6. Synthesis: four failures, four different controls
+## 6. Synthesis: six failures, six different controls
 
-The four failures are worth separating because they are not variations on one theme, and no single
-methodological habit catches all of them.
+The failures are worth separating because they are not variations on one theme, and no single
+methodological habit catches all of them. The first four were found during the original work; the
+fifth and sixth were found later, by the state-of-the-art comparison and the selectivity audit, and
+they are of different kinds again.
 
 **Molecular redundancy (§5.1)** is the familiar one, addressed by scaffold or time splitting [7, 9]
 and quantified by bias measures such as AVE [10]. It is detected by asking how similar test
@@ -669,6 +890,26 @@ instances, the *erroneous* protocol produced the more publishable number: 0.95 i
 consequences, and a result that looks unusually good on a small dataset is better treated as a
 diagnostic signal than as a finding.
 
+**A fifth failure, added later, is of a different kind: a method validated under one shift and
+carried to another.** §5.13 found that conformal calibration on random training molecules — the
+recipe that holds 0.922 coverage under scaffold shift — under-covers by 0.11–0.14 under publication
+shift, and that calibrating on held-out *publications* restores it. Nothing was wrong with the
+original experiment or its conclusion; what was wrong was the implicit scope. The detecting question
+is not "is this method principled?" but "what exactly was it exchangeable with when it was
+validated?". We note that this failure mode is specific to distribution-free methods whose guarantee
+is conditional on an assumption the protocol itself violates, which makes the guarantee easy to
+quote and easy to over-extend.
+
+**A sixth, also added later, is a reasoning error of ours rather than a protocol error.** §5.7
+measured r(TG2, FXIII-A) = +0.41 and we first read it as "potency-first ranking enriches for
+cross-reactivity". Testing the claim directly refuted it: the top potency decile passes a 10-fold
+selectivity gate at 46.7% against a 13.6% base rate (odds ratio 8.0, p = 0.001), because a
+correlation of 0.41 leaves ample room for the ratio to improve. A correlation between two components
+does not determine the behaviour of their difference, and the only reliable check was to compute the
+quantity we actually cared about. This one is recorded because the erroneous version was the more
+cautious-sounding claim, which is a direction of error the three-of-four pattern above does not
+cover.
+
 ---
 
 ## 7. Discussion
@@ -698,6 +939,43 @@ non-selective, and poorly suited to the repurposing strategy that first motivate
 That is a useful negative conclusion for a medicinal-chemistry programme, and it was reached
 computationally at zero experimental cost.
 
+**Why potency prediction alone cannot identify a celiac treatment candidate.** The question that
+motivated this project was whether machine learning could help find a compound to treat celiac
+disease by inhibiting TG2. Our results support a sharper answer than "not yet", with four
+independent reasons that do not depend on which model is used.
+
+*First, the potency model is only valid where screening is not needed.* AUROC ≈0.86 holds above 0.4
+Tanimoto to the training set, which is analogue ranking inside known series. 99.2% of approved drugs
+and 80% of molecules on the publication-held-out arm fall below that floor, where every one of
+eleven models ranks near chance (§5.6, §5.10, §5.11). A model that works on familiar chemistry and
+fails on unfamiliar chemistry is not a discovery tool; it is a structure–activity interpolator.
+
+*Second, abstention does not repair this.* Conformal prediction remains honest in that regime but
+commits on 15–32% of molecules and errs on a quarter to a third of those (§5.13). There is no
+subset of trustworthy predictions to act on.
+
+*Third, potency is not the limiting property.* A TG2 inhibitor for celiac disease would be taken
+chronically by otherwise-healthy people, which makes selectivity within the transglutaminase family
+a safety gate. Of 147 paired molecules only 20 are 10-fold TG2-selective and 10 are selective the
+wrong way; the defensible, format-matched subset is 79 pairs with 13 selective molecules, 8 of them
+in one publication (§5.7). Selectivity cannot be predicted across series, and the five-gate cascade
+that would combine potency with selectivity, applicability domain, uncertainty and drug-likeness
+**cannot be assembled at all**: 0 molecules carry all five inputs, because measured selectivity
+exists only for molecules already inside the training set. Potency prediction is therefore not one
+component of a working pipeline that is missing the others — it is the only component that can
+currently be evaluated.
+
+*Fourth, even where potency ranking helps selectivity, it does not deliver clean compounds.* The
+corrected finding in §5.7 is that potency and selectivity gates agree (46.7% against a 13.6% base
+rate), but absolute FXIII-A potency rises along with the ratio. A cascade gating only on the ratio
+selects compounds that are simultaneously more selective and more potent on the anti-target.
+
+None of this says a TG2 inhibitor cannot treat celiac disease — ZED1227 met its primary endpoint in
+a 163-patient trial. It says that the computational contribution available from this dataset is
+ranking analogues of known chemotypes and quantifying when to refuse, and that the binding
+constraint on progress is experimental selectivity data rather than model capacity. **No compound in
+this work is a treatment candidate, and no shortlist is offered.**
+
 ### 7.3 Reproducibility as a prerequisite rather than a virtue
 
 The determinism work (§5.4) was initially undertaken as housekeeping and turned out to be
@@ -711,7 +989,7 @@ chemistry or the statistics would have revealed it.
 ## 8. Limitations
 
 **Three targets, not a survey.** The core findings come from one protein, one disease and 631
-molecules, with three of the four failures retested on CDK2 and MAO-B (§5.9). Three targets show a
+molecules, with three of the first four failures retested on CDK2 and MAO-B (§5.9). Three targets show a
 failure is not unique to TG2; they do not establish a general law, and all three are human enzymes
 drawn from ChEMBL through one curation pipeline. The magnitudes differ substantially between
 them — 38.6% against 7.3% identical fingerprints, chance against AUROC 0.739 below 0.4 Tanimoto —
@@ -743,6 +1021,33 @@ for Ki/IC50 mixtures [12]. For kinact/Ki no such correction factor is establishe
 
 **Publication grouping is approximate.** Document identifiers come from the off-target side of each
 pair in §5.7; a molecule's TG2 measurement may originate elsewhere.
+
+**Assay format in the paired set is inferred from free-text titles.** §5.7's later audit classifies
+each assay by regex over the ChEMBL description title. 17 of 147 pairs are too terse to classify,
+and a format that agrees by title could still differ in substrate, buffer, calcium or preincubation
+time, none of which the record contains. A reliable audit needs the primary publications. The 56
+pairs flagged because one methods blob is attached to both assays are called *unverifiable*, not
+wrong.
+
+**Eleven folds on the publication arm.** §5.11 and §5.13 both rest on leave-one-publication-out over
+11 publications, with per-fold standard deviations of 0.15–0.26 and fold sizes from 10 to 106
+molecules. Every per-fold model comparison there is underpowered, and we report the two headline
+differences as inconclusive rather than ranking the models. Only §5.13's coverage comparison, with
+66 paired observations, is significant.
+
+**The two conformal calibration regimes are not matched on training data.** Group calibration holds
+out whole publications and therefore fits on 16 fewer molecules and fewer publications than the
+i.i.d. regime. §5.13 argues the coverage gain is not an artefact of a weaker model — set sizes grow
+far less than coverage, and a uniformly weaker model would not preferentially repair the fingerprint
+entrants — but a cleanly matched experiment fixing the fitting set was not run.
+
+**The leakage probe bounds prompts, not corpora.** §5.12 is one model at one revision through five
+prompts under greedy decoding. 0 of 631 molecules can be audited against the actual pretraining
+corpora, and the probe speaks to labels rather than structures.
+
+**Five entrants were omitted from the uncertainty experiment.** §5.13 covers six of the eleven
+models in §5.10; Chemprop+RDKit, which placed third on the publication arm by AUROC, is the most
+arguable omission.
 
 ---
 
@@ -776,8 +1081,28 @@ validated applicability domain. Covalent fragment collections would require the 
 that §5.8 found infeasible, so they should follow the kinetic-unit recovery rather than precede it.
 
 **Mondrian conformal prediction** stratified by scaffold cluster, to give per-chemotype rather than
-marginal coverage [6]. Cheap, incremental, and strengthens the one methodological result that held
-up throughout.
+marginal coverage [6]. Now partly done and partly re-prioritised: §5.13 runs the class-wise variant
+on the publication arm and finds it strictly better (same coverage, 30% more decisive answers), and
+also finds that conditional coverage fails in the high-similarity bands — which is the gap
+scaffold-cluster stratification exists to close. It is no longer "incremental": it is the specific
+repair the measured failure points at.
+
+**Measure FXIII-A on molecules outside the TG2 training set.** This is now the step the selectivity
+and screening work converges on, and it is experimental rather than computational. A five-gate
+cascade combining activity, selectivity, applicability domain, uncertainty and drug-likeness cannot
+be assembled from existing public data at any sample size, because the evidence sets are
+structurally disjoint: **0 molecules carry all five inputs**, since a molecule with measured FXIII-A
+selectivity is by construction one already in our training set, where applicability domain and
+out-of-sample uncertainty are undefined. Roughly 30–50 FXIII-A measurements in one assay format on
+molecules outside that set would convert the selectivity gate from unbuildable to testable, give
+leave-one-publication-out a third and fourth informative group, and allow the 46.7%-against-13.6%
+enrichment of §5.7 to be checked on chemistry it was not derived from. No further modelling of the
+existing 147 pairs substitutes for it.
+
+**Test the publication-split ranking inversion where it can be resolved.** §5.11's inversion is
+unresolvable at 11 folds. CDK2 (351 publications) and MAO-B (586) already exist in this project and
+would give a leave-one-publication-out design with enough groups to carry an interval. That is the
+cheapest route from a hypothesis with an effect size to a finding, and it needs no new data.
 
 **Prospective laboratory validation.** No computational result here justifies an assay yet. The
 realistic path, in order: recover the kinetic units; build a within-series model on the largest
@@ -801,16 +1126,32 @@ substantially improves on zero-shot (+0.199, 10/10 seeds); below 0.4 Tanimoto al
 molecules with paired data also inhibit FXIII-A; between-publication offset in kinact/Ki (0.50 log)
 rivals within-publication spread (0.57 log); QLoRA training can be made bit-exact, and the cause of
 its nondeterminism is backward-pass kernel selection; on CDK2 and MAO-B, holding out whole publications costs
-more AUROC than scaffold splitting (0.898 → 0.830 and 0.865 → 0.789, non-overlapping intervals).
+more AUROC than scaffold splitting (0.898 → 0.830 and 0.865 → 0.789, non-overlapping intervals);
+**no specialized molecular model beats the tuned random forest under scaffold evaluation** (nine
+entrants, best Δ −0.033 at Holm p = 0.045, §5.10); **base Qwen holds none of the TG2 labels these
+prompts can retrieve** — 631 of 631 abstentions, six distinct answers when forced, and re-rooting
+the SMILES *improves* every metric (§5.12); **i.i.d. conformal calibration under-covers under
+publication shift** (0.784 against 0.90) while publication-wise calibration holds it (0.914,
+Δ +0.113, p = 2.5 × 10⁻⁸, §5.13); **TG2 and FXIII-A potency correlate positively** (r = +0.41) yet
+the top potency decile still passes a 10-fold selectivity gate at 46.7% against 13.6% (odds ratio
+8.0, p = 0.001, §5.7).
 
 **Inconclusive:** KL anchors improve overall AUROC by 0.038 (p = 0.127); they change novel-chemistry
 AUROC by +0.035 (95% CI [−0.107, +0.225]); selectivity is predictable across publications (0.574,
 95% CI [0.250, 0.864]); covalent efficiency is predictable across publications (−0.046 log RMSE,
-95% CI [−0.101, +0.011]).
+95% CI [−0.101, +0.011]); **the model ranking inverts under publication-held-out evaluation** —
+ChemBERTa-2 frozen Δ +0.089 over the random forest, 95% CI [−0.027, +0.205], every Holm-corrected
+p = 1.000 on 11 folds (§5.11); **frozen chemical language models abstain more usefully on an unseen
+publication** (risk–coverage 0.358 → 0.227 against 0.459 → 0.353, paired p = 0.63–0.91, §5.13).
 
 **Withdrawn:** the zero-shot model generalises better to unfamiliar chemistry (a pooling artefact);
 QLoRA fine-tuning monotonically erodes the base model's chemical prior (did not reproduce under
-deterministic training).
+deterministic training); **a potency-ranked cascade enriches for cross-reactivity** (our own
+inference from r = +0.41, refuted by direct measurement — §5.7, §6).
+
+**Scoped rather than overturned:** conformal prediction holds coverage under distribution shift —
+true under scaffold shift with i.i.d. calibration, false under publication shift with the same
+recipe (§5.13).
 
 ### 10.2 The contribution
 
