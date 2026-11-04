@@ -320,14 +320,27 @@ def _fmt(cfg):
     return ", ".join(f"{k}={v}" for k, v in cfg.items() if k not in skip)
 
 
-def load_folds(split, seeds, path=SPLITS):
-    """Yield one dict per fold, carrying the molecules and the index arrays into them."""
-    d = pd.read_csv(path)
+def load_folds(split, seeds, path=SPLITS, only=None):
+    """Yield one dict per fold, carrying the molecules and the index arrays into them.
+
+    `only` selects an explicit set of fold ids, for sampling leave-one-publication-out folds. It is
+    needed because folds there are indexed by sorted ChEMBL document id, which tracks publication
+    date, so `seeds` -- a prefix -- would sample the oldest papers rather than a cross-section.
+    """
+    # low_memory=False: held_out_paper is empty for the seeded protocols and a ChEMBL id for
+    # paper_lopo, and chunked inference on MAO-B's 1.28M rows would type the column per chunk.
+    d = pd.read_csv(path, low_memory=False)
     d = d[d.split_kind == split]
     if d.empty:
         raise SystemExit(f"no rows for split {split!r} in {path}")
     available = sorted(d.seed.unique())
-    want = available if seeds is None else [s for s in available if s < seeds]
+    if only is not None:
+        want = [s for s in available if s in set(only)]
+        missing = set(only) - set(available)
+        if missing:
+            raise SystemExit(f"folds {sorted(missing)} not in {path} for split {split!r}")
+    else:
+        want = available if seeds is None else [s for s in available if s < seeds]
     for seed in want:
         g = d[d.seed == seed]
         order = {"train": 0, "valid": 1, "test": 2}
@@ -352,9 +365,9 @@ def peak_vram():
     return np.nan
 
 
-def run(model, split, seeds, splits_path=SPLITS):
+def run(model, split, seeds, splits_path=SPLITS, only=None):
     rows, preds = [], []
-    for fold in load_folds(split, seeds, splits_path):
+    for fold in load_folds(split, seeds, splits_path, only):
         te = fold["idx"][2]
         y_te = fold["y"][te]
         try:
@@ -400,11 +413,14 @@ def main():
                     choices=["scaffold", "random", "scaffold_pub", "paper_lopo", "paper_grouped"])
     ap.add_argument("--target", default="tg2", choices=["tg2", "cdk2", "maob"])
     ap.add_argument("--seeds", type=int, default=None, help="use seeds < N; default all exported")
+    ap.add_argument("--only-seeds", default=None,
+                    help="comma-separated fold ids to run instead, e.g. a random LOPO sample")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
     splits_path, out_default, preds_path = paths(args.target)
     out_path = args.out or out_default
+    only = [int(s) for s in args.only_seeds.split(",")] if args.only_seeds else None
 
     models = DEFAULT_ORDER if args.model == "all" else args.model.split(",")
     unknown = [m for m in models if m not in ENTRANTS]
@@ -414,7 +430,7 @@ def main():
     failed = {}
     for model in models:
         try:
-            rows, preds = run(model, args.split, args.seeds, splits_path)
+            rows, preds = run(model, args.split, args.seeds, splits_path, only)
         except Exception as e:  # one entrant's environment must not take the others down
             print(f"  {model}: FAILED -- {e}", file=sys.stderr, flush=True)
             failed[model] = str(e).splitlines()[0]

@@ -63,11 +63,19 @@ fold, still shares zero publications between train and test — the property tha
 effect — and costs 7.6 h and 18.5 h instead of 52 h and 315 h.
 
 TG2's 11-fold leave-one-out arm stays as published. To keep the two protocols comparable rather than
-merely both present, CDK2 and MAO-B should be run under **both** protocols for the three cheap
-models (random forest, XGBoost, logistic regression — 6.5% of the sweep budget, under 4 h for both
-targets combined), which measures directly how much the protocol change moves the number. The
-expensive entrants then run on grouped folds only, and the measured protocol offset is reported
-alongside them.
+merely both present, CDK2 and MAO-B should be run under **both** protocols for the cheap models
+(random forest, XGBoost, logistic regression — 6.5% of the sweep budget), which measures directly
+how much the protocol change moves the number. The expensive entrants then run on grouped folds
+only, and the measured protocol offset is reported alongside them.
+
+> **Correction (2026-11-04).** This paragraph first put that check at "under 4 h for both targets
+> combined". That was a prose estimate, not one computed by the script, and it was wrong: the three
+> cheap models over every usable leave-one-out fold cost **3.4 h on CDK2 and 20.8 h on MAO-B**.
+> MAO-B's 154 usable folds are the reason. The check therefore runs as three cheap models over
+> CDK2's full 83 folds, and random forest alone over a **random sample of 50 MAO-B folds** (1.9 h),
+> which estimates the protocol offset without buying all 154. The sample must be drawn at random
+> rather than taken as the first 50: folds are indexed by sorted ChEMBL document id, which tracks
+> publication date, so a prefix would be a sample of the oldest papers.
 
 ## 3. Matched molecules, as the hypothesis requires
 
