@@ -5,8 +5,8 @@ forest, Qwen QLoRA, Qwen zero-shot) come from the files the paper already cites,
 never re-derives a number the paper depends on.
 
 Reproduce: python scripts/analyse_sota.py [--split scaffold] [--figures]
-  -> results/sota_summary.csv, results/sota_paired.csv, results/sota_bands.csv
-  -> results/figures/sota_{comparison,calibration,generalization}.png
+  -> results/sota_{summary,paired,bands}_<split>.csv
+  -> results/figures/sota_{comparison,calibration,generalization}_<split>.png
 """
 import argparse
 import os
@@ -193,7 +193,7 @@ def figures(d, pair, band_table, split):
         ax.grid(axis="y", alpha=0.3)
     fig.suptitle(f"TG2 potency, {split} split — per-fold distribution")
     fig.tight_layout()
-    fig.savefig(f"{FIGDIR}/sota_comparison.png", dpi=150)
+    fig.savefig(f"{FIGDIR}/sota_comparison_{split}.png", dpi=150)
     plt.close(fig)
 
     # 2. accuracy against calibration: the two do not improve together
@@ -210,7 +210,7 @@ def figures(d, pair, band_table, split):
     ax.set_title(f"Ranking skill against calibration, {split} split")
     ax.grid(alpha=0.3)
     fig.tight_layout()
-    fig.savefig(f"{FIGDIR}/sota_calibration.png", dpi=150)
+    fig.savefig(f"{FIGDIR}/sota_calibration_{split}.png", dpi=150)
     plt.close(fig)
 
     # 3. where each model stops working
@@ -231,9 +231,9 @@ def figures(d, pair, band_table, split):
         ax.legend(fontsize=7, ncol=2)
         ax.grid(alpha=0.3)
         fig.tight_layout()
-        fig.savefig(f"{FIGDIR}/sota_generalization.png", dpi=150)
+        fig.savefig(f"{FIGDIR}/sota_generalization_{split}.png", dpi=150)
         plt.close(fig)
-    print(f"-> {FIGDIR}/sota_{{comparison,calibration,generalization}}.png")
+    print(f"-> {FIGDIR}/sota_{{comparison,calibration,generalization}}_{split}.png")
 
 
 def main():
@@ -283,10 +283,12 @@ def main():
             subset=["seconds"])
         print(cost.to_string(index=False, float_format=lambda v: f"{v:,.1f}"))
 
-    summary.to_csv("results/sota_summary.csv", index=False)
-    pair.to_csv("results/sota_paired.csv", index=False)
-    band_table.to_csv("results/sota_bands.csv", index=False)
-    print(f"\n-> results/sota_{{summary,paired,bands}}.csv")
+    # one file set per protocol arm: the three arms answer different questions and a shared
+    # filename would leave only whichever ran last
+    for name, frame in (("summary", summary), ("paired", pair), ("bands", band_table)):
+        frame.assign(split=args.split).to_csv(
+            f"results/sota_{name}_{args.split}.csv", index=False)
+    print(f"\n-> results/sota_{{summary,paired,bands}}_{args.split}.csv")
 
     if args.figures:
         figures(d, pair, band_table, args.split)
