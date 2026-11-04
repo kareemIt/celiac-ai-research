@@ -133,14 +133,31 @@ write, plus CPU-only controls:
 - **Training-set size**: the scaffold arm re-run at the grouped arm's training size, cheap models
   only. This is the control that separates "unseen publication" from "less training data".
 - **Class balance**: per-fold positive rate against per-fold AUROC, from existing outputs.
-- **Assay differences**: ChEMBL `assay_description` and `assay_id` per publication; CDK2 has 786
-  distinct descriptions and MAO-B 1,420, so an assay-held-out split is a real alternative
-  explanation and is testable with the cheap models.
+- **Assay differences**: see the correction below — this control cannot be built.
 - **Chemical series**: publication-level scaffold entropy against the fold's AUROC drop.
 
-The assay-held-out control is the important one. A publication-held-out split confounds *who
-measured it* with *how it was measured*, and nothing in the existing three-target work separates
-them.
+A publication-held-out split confounds *who measured it* with *how it was measured*, and nothing in
+the existing three-target work separates them.
+
+> **Correction (2026-11-04).** This section called the assay-held-out control "the important one"
+> and "testable with the cheap models". It is **not testable**, and
+> `scripts/audit_assay_confound.py` now establishes why: **0 of 380 CDK2 assays and 0 of 516 MAO-B
+> assays span more than one publication.** ChEMBL defines an assay per paper, so assays are
+> perfectly nested inside publications and an assay-held-out split *is* a publication-held-out
+> split. The within-publication contrast that could estimate an assay effect with the laboratory
+> held fixed exists for only **1 CDK2 publication (60 molecules) and 2 MAO-B publications (109
+> molecules)** — far too little. The 786 and 1,420 distinct *descriptions* quoted above are mostly
+> free-text variants of per-paper assays and do not imply crossed grouping; citing them as evidence
+> of a testable control was the error.
+>
+> What is measurable, and is reported instead: the share of test molecules whose assay never
+> appears in training. On the **same molecules**, a scaffold split leaves that at **0.3% (CDK2) and
+> 9.4% (MAO-B)**, while the grouped publication split leaves it at **100% on both**. So the
+> publication penalty is inseparably an assay penalty, and the honest conclusion is that
+> ChEMBL-derived data cannot decompose it. This strengthens rather than weakens the practical
+> recommendation — a publication-held-out split is the only one that withholds the measurement
+> protocol too — but it forbids the claim that the decline is attributable to publication identity
+> alone.
 
 ## 7. Limitations of this audit
 
