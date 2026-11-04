@@ -25,11 +25,26 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import numpy as np
 import pandas as pd
 
+from scripts.audit_replication_feasibility import deal_papers
 from src.data import chem, chembl, tg2
 
-OUT = "results/splits_tg2.csv"
+OUT = "results/splits_{target}.csv"
 FOLDS = ("train", "valid", "test")
 MIN_PER_PAPER = 10  # the criterion scripts/run_second_target.py used to call a paper fold usable
+GROUPED_K = 10      # folds for paper_grouped; docs/replication_feasibility.md sets the value
+RAW = "data/raw/chembl/{target}_activities.csv"
+
+
+def chembl_dataset(target):
+    """A replication target's labelled molecules, loaded exactly as run_second_target.py does.
+
+    TG2 draws on two sources and needs tg2.combined; CDK2 and MAO-B are ChEMBL-only, so the loader
+    is the simpler one already used for them -- not a second curation path.
+    """
+    raw = chembl.load_raw(RAW.format(target=target))
+    lab = chembl.classification(raw)
+    doc = chembl._usable(raw).groupby("smiles")["document_chembl_id"].first()
+    return lab.assign(paper=lab.smiles.map(doc)).dropna(subset=["paper"]).reset_index(drop=True)
 
 
 def dataset():
@@ -70,8 +85,28 @@ def lopo(sub):
         yield i, paper, (rest[inner[0]], rest[inner[1]], test)
 
 
-def splits(df, seeds):
-    """One row per molecule per fold per protocol."""
+def grouped(sub, k, seed=0):
+    """Leave K disjoint blocks of whole publications out, one block per fold.
+
+    Valid is a scaffold slice of the remaining papers, exactly as in `lopo`, so the held-out
+    publications contribute nothing to tuning or early stopping. `seed` indexes the fold, and the
+    assignment draw is fixed at `seed=0` -- re-dealing is a separate sensitivity run, not a fold.
+    """
+    fold_of = deal_papers(sub, k, seed=seed).to_numpy()
+    for f in range(k):
+        test = sub.index[fold_of == f].to_numpy()
+        rest = sub.index[fold_of != f].to_numpy()
+        inner = chem.scaffold_split(sub.loc[rest, "smiles"].tolist(), frac=(0.9, 0.1, 0.0), seed=f)
+        yield f, (rest[inner[0]], rest[inner[1]], test)
+
+
+def splits(df, seeds, grouped_k=None):
+    """One row per molecule per fold per protocol.
+
+    `grouped_k` adds the paper_grouped protocol. It is off for TG2, whose 17 publications put 394
+    of 460 molecules in the largest seven, so grouped folds there would be wildly uneven and
+    leave-one-publication-out is both affordable and better.
+    """
     sub = publication_subset(df)
     rows = []
     for kind, frame, split in (
@@ -88,26 +123,33 @@ def splits(df, seeds):
             rows.append(sub.loc[part].assign(split_kind="paper_lopo", seed=i, fold=fold,
                                              held_out_paper=paper))
 
+    if grouped_k:
+        for i, idx in grouped(sub, grouped_k):
+            for fold, part in zip(FOLDS, idx):
+                rows.append(sub.loc[part].assign(split_kind="paper_grouped", seed=i, fold=fold))
+
     cols = ["split_kind", "seed", "fold", "smiles", "y", "source", "paper", "held_out_paper"]
     return pd.concat(rows, ignore_index=True).reindex(columns=cols)
 
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--target", default="tg2", choices=["tg2", "cdk2", "maob"])
     ap.add_argument("--seeds", type=int, default=20)
-    ap.add_argument("--out", default=OUT)
+    ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
-    df = dataset()
+    out_path = args.out or OUT.format(target=args.target)
+    df = dataset() if args.target == "tg2" else chembl_dataset(args.target)
     sub = publication_subset(df)
-    out = splits(df, range(args.seeds))
-    out.to_csv(args.out, index=False)
+    out = splits(df, range(args.seeds), grouped_k=None if args.target == "tg2" else GROUPED_K)
+    out.to_csv(out_path, index=False)
 
     print(f"{len(df)} molecules, {int(df.y.sum())} potent ({df.y.mean():.1%}); "
           f"{df['paper'].notna().sum()} attributable to {df['paper'].nunique()} publications")
     print(f"publication subset (>= {MIN_PER_PAPER} molecules/paper): {len(sub)} molecules, "
           f"{sub['paper'].nunique()} papers, {sub.y.mean():.1%} potent")
-    print(f"{len(out)} rows -> {args.out}\n")
+    print(f"{len(out)} rows -> {out_path}\n")
     print(f"{'protocol':<15}{'folds':>6}{'test n':>14}{'% potent':>12}{'1-class':>9}")
     for kind, g in out.groupby("split_kind", sort=False):
         t = g[g.fold == "test"].groupby("seed")

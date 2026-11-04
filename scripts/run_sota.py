@@ -38,6 +38,13 @@ from src.evaluation import metrics
 SPLITS = "results/splits_tg2.csv"
 OUT = "results/sota_tg2.csv"
 PREDS = "results/sota_preds.csv"
+
+
+def paths(target):
+    """Splits, metrics and predictions for one target. TG2's existing filenames are kept exactly,
+    so the published results are never written by a replication run."""
+    return (f"results/splits_{target}.csv", f"results/sota_{target}.csv",
+            PREDS if target == "tg2" else f"results/sota_preds_{target}.csv")
 BUDGET = 12  # configurations per entrant per fold; the existing tuned RF grid is exactly 12
 
 
@@ -345,9 +352,9 @@ def peak_vram():
     return np.nan
 
 
-def run(model, split, seeds):
+def run(model, split, seeds, splits_path=SPLITS):
     rows, preds = [], []
-    for fold in load_folds(split, seeds):
+    for fold in load_folds(split, seeds, splits_path):
         te = fold["idx"][2]
         y_te = fold["y"][te]
         try:
@@ -390,10 +397,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="all")
     ap.add_argument("--split", default="scaffold",
-                    choices=["scaffold", "random", "scaffold_pub", "paper_lopo"])
+                    choices=["scaffold", "random", "scaffold_pub", "paper_lopo", "paper_grouped"])
+    ap.add_argument("--target", default="tg2", choices=["tg2", "cdk2", "maob"])
     ap.add_argument("--seeds", type=int, default=None, help="use seeds < N; default all exported")
-    ap.add_argument("--out", default=OUT)
+    ap.add_argument("--out", default=None)
     args = ap.parse_args()
+
+    splits_path, out_default, preds_path = paths(args.target)
+    out_path = args.out or out_default
 
     models = DEFAULT_ORDER if args.model == "all" else args.model.split(",")
     unknown = [m for m in models if m not in ENTRANTS]
@@ -403,13 +414,13 @@ def main():
     failed = {}
     for model in models:
         try:
-            rows, preds = run(model, args.split, args.seeds)
+            rows, preds = run(model, args.split, args.seeds, splits_path)
         except Exception as e:  # one entrant's environment must not take the others down
             print(f"  {model}: FAILED -- {e}", file=sys.stderr, flush=True)
             failed[model] = str(e).splitlines()[0]
             continue
-        merge(args.out, rows, ["model", "split", "seed"])
-        merge(PREDS, preds, ["model", "split", "seed"])
+        merge(out_path, rows, ["model", "split", "seed"])
+        merge(preds_path, preds, ["model", "split", "seed"])
         print(f"{model}: AUROC {rows.auroc.mean():.3f} +- {rows.auroc.std():.3f} "
               f"over {len(rows)} folds\n", flush=True)
 

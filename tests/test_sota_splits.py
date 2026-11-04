@@ -5,7 +5,8 @@ different molecules, which is the failure the export exists to prevent.
 """
 import pytest
 
-from scripts.export_splits import dataset, lopo, publication_subset, splits
+from scripts.export_splits import (GROUPED_K, chembl_dataset, dataset, grouped, lopo,
+                                   publication_subset, splits)
 from src.data import chem, tg2
 
 SEEDS = range(3)
@@ -107,3 +108,51 @@ def test_lopo_single_class_folds_are_the_known_ones(exported):
     one_class = t.groupby("held_out_paper")["y"].nunique().eq(1)
     assert one_class.sum() <= 1, f"too many unusable LOPO folds: {list(one_class[one_class].index)}"
     assert t.groupby("seed").size().min() >= 10
+
+
+# ---------------------------------------------------------------- the grouped publication protocol
+#
+# paper_grouped is what docs/replication_feasibility.md puts in place of leave-one-publication-out
+# on CDK2 and MAO-B. Its whole value rests on holding out *whole* publications, so these cases pin
+# that property on real CDK2 data rather than on a synthetic frame.
+
+@pytest.fixture(scope="module")
+def cdk2():
+    return publication_subset(chembl_dataset("cdk2"))
+
+
+@pytest.fixture(scope="module")
+def cdk2_grouped(cdk2):
+    return list(grouped(cdk2, GROUPED_K))
+
+
+def test_grouped_folds_hold_out_whole_publications(cdk2, cdk2_grouped):
+    """No publication may appear in both the training and the test side of a fold.
+
+    This is the only thing separating the protocol from a scaffold split: docs/second_target.md
+    measured 69 publications straddling CDK2's scaffold folds, and that leak is the mechanism
+    behind the entire effect being replicated.
+    """
+    for _, (tr, va, te) in cdk2_grouped:
+        test_papers = set(cdk2.loc[te, "paper"])
+        assert not test_papers & set(cdk2.loc[tr, "paper"])
+        assert not test_papers & set(cdk2.loc[va, "paper"])
+
+
+def test_grouped_folds_test_every_molecule_exactly_once(cdk2, cdk2_grouped):
+    """Unlike leave-one-publication-out, the folds must not overlap -- that overlap is the pooling
+    artefact which narrowed bootstrap intervals by 15-18% in docs/second_target.md."""
+    tested = [i for _, (_, _, te) in cdk2_grouped for i in te]
+    assert sorted(tested) == sorted(cdk2.index)
+
+
+def test_grouped_folds_partition_each_fold(cdk2, cdk2_grouped):
+    for _, (tr, va, te) in cdk2_grouped:
+        assert len(set(tr) | set(va) | set(te)) == len(cdk2)
+        assert not set(tr) & set(va)
+
+
+def test_grouped_test_folds_are_usable(cdk2, cdk2_grouped):
+    """The protocol was chosen partly because it yields no single-class folds on CDK2."""
+    for _, (_, _, te) in cdk2_grouped:
+        assert cdk2.loc[te, "y"].nunique() == 2

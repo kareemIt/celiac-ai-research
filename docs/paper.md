@@ -38,7 +38,7 @@ TG2-potent molecules with paired data also inhibit Factor XIII-A at 1 µM), that
 family cannot expand the dataset where it is weakest, and that covalent inhibition efficiency
 (kinact/Ki) does not predict across laboratories (−0.046 log RMSE against a constant predictor, 95%
 CI [−0.101, +0.011]). We then test three of the first four failures on an independent target, CDK2 (2,646 molecules, 351
-publications, chemically unrelated to TG2) and again on MAO-B (5,840 molecules, 586 publications).
+publications, chemically unrelated to TG2) and again on MAO-B (5,840 molecules, 414 publications).
 All three reproduce in direction and mechanism while differing in magnitude, and both independent
 targets agree that the publication split costs more than the scaffold split. Publication-level confounding reproduces most strongly, costing more than
 scaffold splitting (AUROC 0.898 → 0.830) on a large, diverse dataset whose positives are spread
@@ -671,10 +671,10 @@ fixed model is compared against a refitted one, which is the comparison every "L
 baseline" study performs.
 
 **A third target tests whether the ordering is stable.** MAO-B (CHEMBL2039) is larger again
-(5,840 molecules, 586 publications, 36% positive) and a different enzyme class once more, a
+(5,840 molecules, 414 publications, 36% positive) and a different enzyme class once more, a
 flavin-containing oxidase. Its pattern matches: random → scaffold −0.059, scaffold → paper a
 further −0.076 (RF AUROC 0.923 → 0.865 → 0.789, no interval overlapping the next), with **122.2 of
-586 publications straddling a scaffold split on average**, and 8.9% of its random-split test
+414 publications straddling a scaffold split on average**, and 8.9% of its random-split test
 molecules fingerprint-identical to a training molecule. On both independent targets the publication penalty
 exceeds the scaffold penalty — 2.3× on CDK2, 1.3× on MAO-B. Two datasets differing in size, enzyme
 class, class balance and publication count agree that the split which matters most is the one
@@ -878,7 +878,7 @@ leakage, is powerless against this because scaffolds do not nest within publicat
 laboratory's series spans several scaffolds, so holding out a scaffold leaves the same laboratory on
 both sides of the fold. We initially expected this to be a hazard of datasets assembled from a handful of papers, which
 describes most selectivity panels and most kinetic datasets. **The CDK2 and MAO-B validations (§5.9) refuted
-that:** the effect appeared on 2,646 molecules from 351 publications and on 5,840 from 586, in
+that:** the effect appeared on 2,646 molecules from 351 publications and on 5,840 from 414, in
 neither case with a dominant paper, and on both it exceeded the scaffold effect (−0.068 against
 −0.030, and −0.076 against −0.059). On the evidence of three targets spanning three enzyme classes
 we suggest a publication-held-out split should be reported alongside the scaffold split as a matter
@@ -1100,7 +1100,7 @@ enrichment of §5.7 to be checked on chemistry it was not derived from. No furth
 existing 147 pairs substitutes for it.
 
 **Test the publication-split ranking inversion where it can be resolved.** §5.11's inversion is
-unresolvable at 11 folds. CDK2 (351 publications) and MAO-B (586) already exist in this project and
+unresolvable at 11 folds. CDK2 (351 publications) and MAO-B (414) already exist in this project and
 would give a leave-one-publication-out design with enough groups to carry an interval. That is the
 cheapest route from a hypothesis with an effect size to a finding, and it needs no new data.
 

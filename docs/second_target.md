@@ -157,7 +157,7 @@ the individual dataset that must be measured, not assumed.
 
 CDK2 answered whether a failure reproduces. A third target answers whether the *ordering* of the
 failures is stable or incidental. MAO-B (CHEMBL2039) was the pre-screened second choice: more
-publications than CDK2 (586 against 351), positives spread even more evenly (largest paper 3%), a
+publications than CDK2 (414 against 351), positives spread even more evenly (largest paper 3%), a
 different enzyme class again (flavin-containing oxidase, small aromatics and propargylamines), and
 a different class balance (36% positive against CDK2's 53%).
 
@@ -166,7 +166,18 @@ binding assays, with 39 ADMET and 15 toxicity rows excluded by the `assay_type` 
 for CDK2 — and visibly worth having, since those rows run at medians of 3,200 and 14,300 nM against
 1,580 for the binding assays. A further 470 rows flagged "outside typical range" and 26 flagged as
 potential transcription errors are dropped. All 17,928 records are *Homo sapiens*. Final dataset:
-**5,840 molecules, 2,108 potent (36%), 586 publications.**
+**5,840 molecules, 2,108 potent (36%), 414 publications.**
+
+> **Correction (2026-11-04).** This figure, and every MAO-B publication count in this document and
+> in [`paper.md`](paper.md), previously read **586**. That was the number of distinct documents
+> across all 17,928 *raw* MAO-B records, including the rows the pipeline discards — not the
+> publications of the evaluated set, which is the basis CDK2's 351 is quoted on. Counted the same
+> way as CDK2, MAO-B has **414**. The comparison "more publications than CDK2" survives, but the
+> gap is 63 publications rather than 235, and the straddling result below is 122.2 of 414, not of
+> 586. No measured quantity changes: molecule counts, labels, splits, AUROCs and the 209
+> publications with at least 10 molecules were all computed by the pipeline and are unaffected.
+> Found while regenerating the MAO-B splits for the replication, by `scripts/export_splits.py`
+> reporting 414 where the document said 586.
 
 | split | shared scaffolds | shared papers | mean max Tanimoto | identical fp | RF AUROC | 95% CI | ECE |
 |---|---|---|---|---|---|---|---|
@@ -176,7 +187,7 @@ potential transcription errors are dropped. All 17,928 records are *Homo sapiens
 
 Random → scaffold costs **−0.059**; scaffold → paper a further **−0.076**. No interval overlaps the
 next. A scaffold split again leaves a large number of publications straddling the fold — **122 of
-586** — which is the same mechanism seen on CDK2, at a larger dataset size.
+414** — which is the same mechanism seen on CDK2, at a larger dataset size.
 
 Novelty curve under the paper split, and this one is cleanly monotone:
 
@@ -197,7 +208,7 @@ interval narrows by **15%**.
 |---|---|---|---|
 | Molecules | 631 | 2,646 | 5,840 |
 | Positive | 48% | 53% | 36% |
-| Publications | 17 (ChEMBL side) | 351 | 586 |
+| Publications | 17 (ChEMBL side) | 351 | 414 |
 | Enzyme class | cysteine transferase | protein kinase | flavin oxidase |
 | Identical fingerprints, random split | **38.6%** | 7.3% | 8.9% |
 | random → scaffold | ≈ −0.08 | −0.030 | −0.059 |
@@ -239,7 +250,7 @@ because the CDK2 trend would otherwise read as general.
 | Novelty → reliability | chance below 0.4 | 0.739 below 0.4 | 0.622 below 0.4 | **Partly** — trend reproduces, threshold is dataset-specific |
 
 **Strengthened:** publication-level confounding is not an artefact of small concentrated panels. It
-appeared on a 2,646-molecule / 351-publication dataset and a 5,840-molecule / 586-publication one,
+appeared on a 2,646-molecule / 351-publication dataset and a 5,840-molecule / 414-publication one,
 and on both it exceeded the scaffold effect. The recommendation to report a publication-held-out
 split is supported on three targets spanning three enzyme classes.
 
