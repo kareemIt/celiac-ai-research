@@ -45,6 +45,14 @@ from scripts.run_sota import ENTRANTS, load_folds, morgan
 PRED = "results/lopo_conformal.csv"
 OUT = "results/lopo_conformal_summary.csv"
 SPLIT = "paper_lopo"
+
+
+def conformal_paths(target, split):
+    """TG2's published filenames are kept exactly; a replication target gets its own pair."""
+    if target == "tg2" and split == SPLIT:
+        return PRED, OUT
+    stem = f"results/conformal_{target}_{split}"
+    return f"{stem}.csv", f"{stem}_summary.csv"
 BAND_EDGES = (0.0, 0.4, 0.5, 0.6, 0.7, 1.01)        # identical to scripts/analyse_sota.py
 ENSEMBLE = ("rf", "xgb", "logreg")                  # the ensemble docs/uncertainty.md calibrates
 
@@ -101,11 +109,11 @@ def risk_coverage(y, p, levels=(1.0, 0.8, 0.6, 0.4, 0.2)):
     return {c: float(wrong[:max(1, int(round(c * len(y))))].mean()) for c in levels}
 
 
-def main(models, alphas, cal_frac):
+def main(models, alphas, cal_frac, split, splits_path, pred_path, out_path):
     rng = np.random.default_rng(0)
     rows = []
 
-    for fold in load_folds(SPLIT, None):
+    for fold in load_folds(split, None, splits_path):
         tr, va, te = fold["idx"]
         y, smiles = fold["y"], fold["smiles"]
         cal_g, fit_g, held = group_calibration(fold["papers"], tr, cal_frac, rng)
@@ -166,7 +174,7 @@ def main(models, alphas, cal_frac):
                     "smiles": [smiles[i] for i in te], "y": y[te], "p": p_test,
                     "max_tanimoto": sim[regime],
                     "in_set_0": sets[:, 0], "in_set_1": sets[:, 1],
-                }).to_csv(PRED, mode="a", header=not os.path.exists(PRED), index=False)
+                }).to_csv(pred_path, mode="a", header=not os.path.exists(pred_path), index=False)
 
         for model in sorted({m for _, m in preds}):
             rc = risk_coverage(y[te], preds[("group", model)][1])
@@ -176,8 +184,8 @@ def main(models, alphas, cal_frac):
                          **{f"error_at_{int(c * 100)}pct_coverage": v for c, v in rc.items()}})
 
     os.makedirs("results", exist_ok=True)
-    pd.DataFrame(rows).to_csv(OUT, index=False)
-    print(f"\nwrote {OUT} and {PRED}")
+    pd.DataFrame(rows).to_csv(out_path, index=False)
+    print(f"\nwrote {out_path} and {pred_path}")
 
 
 if __name__ == "__main__":
@@ -185,7 +193,14 @@ if __name__ == "__main__":
     ap.add_argument("--models", default="rf,xgb,logreg,chemberta_frozen,chemberta_ft")
     ap.add_argument("--alphas", default="0.1,0.2")
     ap.add_argument("--cal-frac", type=float, default=0.25)
+    ap.add_argument("--target", default="tg2", choices=["tg2", "cdk2", "maob"])
+    ap.add_argument("--split", default=SPLIT, choices=["paper_lopo", "paper_grouped"])
     a = ap.parse_args()
-    if os.path.exists(PRED):
-        os.remove(PRED)                              # the per-molecule file is appended to
-    main(a.models.split(","), [float(x) for x in a.alphas.split(",")], a.cal_frac)
+
+    from scripts.run_sota import paths
+    splits_path, _, _ = paths(a.target)
+    pred_path, out_path = conformal_paths(a.target, a.split)
+    if os.path.exists(pred_path):
+        os.remove(pred_path)                         # the per-molecule file is appended to
+    main(a.models.split(","), [float(x) for x in a.alphas.split(",")], a.cal_frac,
+         a.split, splits_path, pred_path, out_path)
