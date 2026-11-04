@@ -1,0 +1,7 @@
+target,protocol,molecules,papers,frac_positive,folds,usable_folds,single_class_folds,mean_n_train,test_min,test_max,mean_train_papers,cal_papers_needed,sweep_hours
+cdk2,paper_lopo,2078,83,0.5553416746871992,83,63,20,2053,10,135,82.0,20.5,52.3
+cdk2,paper_grouped_k10,2078,83,0.5553416746871992,10,10,0,1870,201,210,74.7,18.7,7.6
+cdk2,scaffold_pub_10seeds,2078,83,0.5553416746871992,10,10,0,1879,182,207,83.0,20.8,7.1
+maob,paper_lopo,5091,209,0.3624042427813789,209,154,55,5067,10,224,208.0,52.0,315.4
+maob,paper_grouped_k10,5091,209,0.3624042427813789,10,10,0,4582,503,512,188.1,47.0,18.5
+maob,scaffold_pub_10seeds,5091,209,0.3624042427813789,10,10,0,4585,497,509,207.1,51.8,17.3
