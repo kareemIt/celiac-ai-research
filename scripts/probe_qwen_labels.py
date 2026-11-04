@@ -43,16 +43,30 @@ from src.data import tg2
 
 RAW = "results/qwen_label_probe_raw.csv"
 OUT = "results/qwen_label_probe.csv"
-ARMS = ("smiles", "smiles+name", "smiles_shuffled")
 MAX_NEW = 24
 
-QUESTION = (
-    "What is the half-maximal inhibitory concentration (IC50) of this compound against human "
-    "tissue transglutaminase 2 (TG2)?\n"
-    "If you know the published value, answer with the number and its unit, for example "
-    "'IC50 = 250 nM'.\n"
-    "If you do not know it, answer exactly UNKNOWN. Do not guess or explain."
-)
+ASK = ("What is the half-maximal inhibitory concentration (IC50) of this compound against human "
+       "tissue transglutaminase 2 (TG2)?\n")
+RECALL = ("If you know the published value, answer with the number and its unit, for example "
+          "'IC50 = 250 nM'.\n"
+          "If you do not know it, answer exactly UNKNOWN. Do not guess or explain.")
+FORCED = ("Answer with a single number and its unit, for example 'IC50 = 250 nM'. "
+          "Give your best estimate even if you are not sure. Do not answer UNKNOWN and do not "
+          "explain.")
+
+# arm -> (which SMILES string to show, include the compound name, force a number)
+# The forced arms exist because a model instructed that UNKNOWN is allowed may abstain reflexively
+# whether or not it knows, which would make an all-UNKNOWN result uninformative. Forcing an estimate
+# removes that confound; the canonical-vs-shuffled contrast is what still separates recall from
+# structural reasoning, since only recall can be keyed on the exact string.
+ARM_SPECS = {
+    "smiles": ("canonical", False, False),
+    "smiles+name": ("canonical", True, False),
+    "smiles_shuffled": ("shuffled", False, False),
+    "smiles_forced": ("canonical", False, True),
+    "smiles_shuffled_forced": ("shuffled", False, True),
+}
+ARMS = tuple(ARM_SPECS)
 
 # nanomolar per unit prefix; the model is free to answer in any of them
 UNITS = {"p": 1e-3, "n": 1.0, "u": 1e3, "μ": 1e3, "µ": 1e3, "m": 1e6, "": 1e9}
@@ -112,22 +126,26 @@ def generate(table, names):
     alt = {s: shuffled_smiles(s) for s in table["smiles"]}
 
     rows, t0 = [], time.perf_counter()
-    for arm in ARMS:
+    for arm, (which, with_name, forced) in ARM_SPECS.items():
         for i, s in enumerate(table["smiles"]):
-            state = f"Compound SMILES: {alt[s] if arm == 'smiles_shuffled' else s}"
-            if arm == "smiles+name" and isinstance(names.get(s), str):
+            shown = alt[s] if which == "shuffled" else s
+            state = f"Compound SMILES: {shown}"
+            if with_name and isinstance(names.get(s), str):
                 state += f"\nCompound name: {names[s]}"
-            prompt = chat_prompt(tok, f"{state}\n\n{QUESTION}")
+            prompt = chat_prompt(tok, f"{state}\n\n{ASK}{FORCED if forced else RECALL}")
             ids = tok(prompt, add_special_tokens=False, return_tensors="pt").to("cuda")
             with torch.no_grad():
                 gen = model.generate(**ids, max_new_tokens=MAX_NEW, do_sample=False,
                                      pad_token_id=tok.eos_token_id)
             text = tok.decode(gen[0, ids["input_ids"].shape[1]:], skip_special_tokens=True).strip()
-            rows.append({"arm": arm, "smiles": s, "answer": text.replace("\n", " ")})
-            if (i + 1) % 100 == 0:
+            # `shown` is recorded so the shuffled arms are auditable: the control is only a control
+            # if the string really differed from the canonical one
+            rows.append({"arm": arm, "smiles": s, "shown": shown,
+                         "answer": text.replace("\n", " ")})
+            if (i + 1) % 200 == 0:
                 print(f"  {arm}: {i + 1}/{len(table)}  {time.perf_counter() - t0:.0f}s", flush=True)
         print(f"  {arm} done: {time.perf_counter() - t0:.0f}s", flush=True)
-    pd.DataFrame(rows).to_csv(RAW, index=False)
+        pd.DataFrame(rows).to_csv(RAW, index=False)   # checkpoint after each arm
     print(f"-> {RAW}")
 
 
@@ -144,7 +162,9 @@ def analyse():
     raw = pd.read_csv(RAW)
     truth = tg2.combined("regression").set_index("smiles")["y"]          # pIC50, exact values only
     label = tg2.combined("classification").set_index("smiles")["y"]      # potent at 1 uM
-    raw["nm"] = raw["answer"].map(parse_nm)
+    # to_numeric, not the raw map: an arm that abstains on every molecule gives an all-None object
+    # column, and numpy's log10 raises on that instead of propagating NaN
+    raw["nm"] = pd.to_numeric(raw["answer"].map(parse_nm), errors="coerce")
     raw["pic50_pred"] = 9 - np.log10(raw["nm"])                          # nM -> pIC50
     raw["pic50_true"] = raw["smiles"].map(truth)
     raw["y"] = raw["smiles"].map(label)
@@ -199,10 +219,15 @@ def analyse():
         for text, n in top.items():
             print(f"    {n:4d}x  {text!r}")
 
-    # the retrieval signature: canonical string helps, shuffled string does not
-    s, sh = out.set_index("arm").loc["smiles"], out.set_index("arm").loc["smiles_shuffled"]
-    print(f"\n  canonical vs shuffled SMILES: Δspearman {s.spearman - sh.spearman:+.3f}, "
-          f"Δanswered {s.answered_frac - sh.answered_frac:+.3f}")
+    # The retrieval signature: a memorised value is keyed on the exact string, so rewriting the
+    # same molecule should cost a recalling model and not cost a reasoning one.
+    idx = out.set_index("arm")
+    print("\n## Retrieval signature: does rewriting the same molecule change the answer?\n")
+    for a, b in (("smiles", "smiles_shuffled"), ("smiles_forced", "smiles_shuffled_forced")):
+        if a in idx.index and b in idx.index:
+            print(f"  {a} vs {b}: Δspearman {idx.loc[a, 'spearman'] - idx.loc[b, 'spearman']:+.3f}, "
+                  f"Δanswered {idx.loc[a, 'answered_frac'] - idx.loc[b, 'answered_frac']:+.3f}, "
+                  f"Δauroc {idx.loc[a, 'auroc_1um'] - idx.loc[b, 'auroc_1um']:+.3f}")
     print(f"-> {OUT}")
 
 

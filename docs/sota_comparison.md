@@ -249,9 +249,11 @@ identifier**. Independently, `results/jev_probe_combined.log` records that addin
 zero-shot prompt moved AUROC 0.648 → 0.651. The channel is real, documented, and too small to
 qualify the Qwen results.
 
-Still not done: the direct label-leakage probe — asking base Qwen for each molecule's IC50 as a
-number and correlating with truth outside the training fold. It audits an existing result rather
-than a new model and needs the 19 GB checkpoint. It remains the single highest-value follow-up.
+**Now done, reported separately: the direct label-leakage probe.** Base Qwen3.5-9B was asked for
+each molecule's IC50 as a number, in five arms. It abstains on 631 of 631 molecules when allowed to;
+forced to answer it emits six stock values for 631 compounds, and rewriting the same molecules as
+re-rooted SMILES *improves* every metric — which recall cannot do. No label leakage is detectable.
+Full write-up and controls in [`qwen_label_probe.md`](qwen_label_probe.md).
 
 ---
 
@@ -336,10 +338,8 @@ safety, and not delivery.
 
 Ranked by expected value for the original research goal, not by novelty.
 
-1. **The direct Qwen label-leakage probe.** It audits a number the paper depends on. Ask base Qwen
-   for each molecule's IC50 numerically and correlate with truth outside the training fold; a
-   correlation above chance would mean the QLoRA result reflects retrieval and not structure–activity
-   learning. Needs the 19 GB checkpoint and the GPU. Highest value per hour of the options here.
+1. ~~**The direct Qwen label-leakage probe.**~~ **Done** — no leakage detectable; the QLoRA result is
+   not explained by retrieval. See [`qwen_label_probe.md`](qwen_label_probe.md).
 2. **Stop benchmarking potency models and get paired selectivity data.** The limiting factor for a
    celiac TG2 inhibitor is TG2-over-FXIII-A, and 147 paired molecules is the entire public basis for
    it. Nothing in this comparison changes that, and no architecture will.

@@ -104,3 +104,26 @@ def test_analysis_detects_leakage_when_it_is_there(tmp_path, monkeypatch, capsys
     assert constant["auroc_1um"] == pytest.approx(0.5)
 
     assert out.loc["smiles_shuffled", "answered"] == 0
+
+
+def test_analysis_survives_an_arm_that_abstains_on_everything(tmp_path, monkeypatch):
+    """An all-UNKNOWN arm is the expected outcome, not an error case.
+
+    It arrives as an all-None column, which numpy's log10 rejects outright rather than turning
+    into NaN, so the whole analysis used to die on the most likely result.
+    """
+    import pandas as pd
+
+    from scripts import probe_qwen_labels as probe
+    from src.data import tg2
+
+    smiles = tg2.combined("classification")["smiles"].tolist()[:40]
+    monkeypatch.setattr(probe, "RAW", str(tmp_path / "raw.csv"))
+    monkeypatch.setattr(probe, "OUT", str(tmp_path / "out.csv"))
+    pd.DataFrame([{"arm": "smiles", "smiles": s, "shown": s, "answer": "UNKNOWN"}
+                  for s in smiles]).to_csv(probe.RAW, index=False)
+
+    probe.analyse()
+    out = pd.read_csv(probe.OUT).set_index("arm")
+    assert out.loc["smiles", "answered"] == 0
+    assert out.loc["smiles", "answered_frac"] == 0.0
