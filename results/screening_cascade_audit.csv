@@ -1,0 +1,18 @@
+section,gate,molecules,pass_rate,delta_vs_base,odds_ratio,p
+evidence_available,predicted TG2 activity,631.0,,,,
+evidence_available,measured TG2 activity,631.0,,,,
+evidence_available,measured selectivity (FXIII-A),147.0,,,,
+evidence_available,applicability domain,2414.0,,,,
+evidence_available,conformal uncertainty (LOPO),444.0,,,,
+evidence_available,ADME / drug-likeness,2414.0,,,,
+evidence_overlap,selectivity_and_uncertainty,142.0,,,,
+evidence_overlap,selectivity_and_library,0.0,,,,
+evidence_overlap,all_five,0.0,,,,
+gate_agreement,all paired,147.0,0.1360544217687075,0.0,,
+gate_agreement,top half by pIC50,74.0,0.1891891891891892,0.053134767420481704,,
+gate_agreement,top quartile,37.0,0.2702702702702703,0.1342158485015628,,
+gate_agreement,top decile,15.0,0.4666666666666667,0.33061224489795915,,
+gate_agreement,top_decile_fisher,,,,8.009615384615385,0.0009827193346496575
+gate_agreement_within_paper,CHEMBL2086255,69.0,0.3333333333333333,0.21739130434782605,,
+gate_agreement_within_paper,CHEMBL5729393,57.0,0.13333333333333333,0.01052631578947369,,
+library,in_domain,19.0,0.007870753935376968,,,

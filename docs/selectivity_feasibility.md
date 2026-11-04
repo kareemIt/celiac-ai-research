@@ -118,11 +118,26 @@ FXIII-A potency are **positively correlated** in every stratum. The molecules th
 harder also inhibit FXIII-A harder, which is what a shared catalytic cysteine and a covalent
 warhead would predict.
 
-**Consequence for screening: a potency-ranked cascade enriches for cross-reactivity.** This is
-consistent with, and mechanistically explains, [`selectivity.md`](selectivity.md)'s finding that
-ranking by *predicted* TG2 potency carried no information about a binary selectivity label
-(AUROC 0.454). Those are different quantities — predicted versus measured potency, binary versus
-continuous selectivity — so they are separate results, but they agree.
+**What this does and does not imply for screening.** It is tempting to conclude that a
+potency-ranked cascade therefore enriches for cross-reactivity. **That conclusion is wrong, and
+[`screening_cascade.md`](screening_cascade.md) measures why:** because the correlation is well below
+1, net selectivity still *rises* with TG2 potency. Among the paired molecules, the top potency decile
+passes a 10-fold selectivity gate at 46.7% against a 13.6% base rate (odds ratio 8.0, Fisher exact
+p = 0.001).
+
+So the accurate statement is narrower and has two parts. Potency-first ranking **does not trade away
+selectivity** — the two gates agree rather than conflict. What it does is raise **absolute off-target
+potency** at the same time, so the compounds it selects are more selective *and* more potent on
+FXIII-A than the ones it rejects, and a ratio gate alone does not notice the second part. A cascade
+that filters on the ratio should also cap absolute FXIII-A potency.
+
+The enrichment is also concentrated in one series: +21.7% in the TG2-directed publication against
++1.1% in the FXIII-A-directed one. One of two publications is not a general rule.
+
+This is consistent with [`selectivity.md`](selectivity.md)'s finding that ranking by *predicted* TG2
+potency carried no information about a binary selectivity label (AUROC 0.454): measured potency
+enriches for measured selectivity, and the model's *predicted* potency does not recover that signal.
+The gap between those two statements is a limitation of the model, not of the chemistry.
 
 ## 5. Feasibility of the three proposed approaches
 
@@ -197,10 +212,14 @@ cross-reactivity across the family is common, which is a real property of the kn
 2. **Two existing figures need qualifying.** "147 paired molecules" should be **79** format-matched
    pairs for any ratio claim; "median 1.4× selective" should be **+2.8× in the TG2-directed series
    and 2.3× the wrong way in the FXIII-A-directed series**, never the pooled value.
-3. **One new, robust, negative finding.** TG2 and FXIII-A potency correlate positively
-   (r = +0.41 pooled, +0.49 and +0.38 within papers, all significant). Potency-first ranking
-   enriches for cross-reactivity. This is a measured property of the data, not a model output, and
-   it is the strongest argument in this project against potency-only prioritisation.
+3. **One new robust finding, and it is not the one it first looked like.** TG2 and FXIII-A potency
+   correlate positively (r = +0.41 pooled, +0.49 and +0.38 within papers, all significant), so
+   potency gains carry partly to the off-target. But the correlation is well below 1, so net
+   selectivity still rises with potency: the top potency decile passes a 10-fold gate at 46.7%
+   against a 13.6% base rate. **Potency-first ranking does not trade away selectivity; it raises
+   absolute off-target potency while improving the ratio.** A cascade should therefore gate on
+   absolute FXIII-A potency as well as on the ratio. Measured against predicted matters here —
+   `selectivity.md` found predicted potency carries no selectivity information at all.
 4. **Selective chemistry does exist**: 13 molecules at >10× and 6 at >100× in the format-matched
    subset. That is a real observation about those molecules and not a predictive capability.
 
