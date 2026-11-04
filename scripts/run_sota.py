@@ -330,7 +330,9 @@ def load_folds(split, seeds, path=SPLITS):
         # "an integer is required", which only shows up inside an entrant that seeds torch
         yield {"split": split, "seed": int(seed), "smiles": g["smiles"].tolist(),
                "y": g["y"].to_numpy(), "idx": idx,
-               "paper": g["held_out_paper"].iloc[0] if "held_out_paper" in g else np.nan}
+               "paper": g["held_out_paper"].iloc[0] if "held_out_paper" in g else np.nan,
+               # per-molecule source publication, for callers that calibrate by group
+               "papers": g["paper"].tolist() if "paper" in g else None}
 
 
 def peak_vram():
