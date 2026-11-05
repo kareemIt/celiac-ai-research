@@ -156,3 +156,29 @@ def test_grouped_test_folds_are_usable(cdk2, cdk2_grouped):
     """The protocol was chosen partly because it yields no single-class folds on CDK2."""
     for _, (_, _, te) in cdk2_grouped:
         assert cdk2.loc[te, "y"].nunique() == 2
+
+
+def test_fold_sampling_is_reproducible_and_a_true_subset():
+    from scripts.run_sota import sample_folds
+    pool = list(range(209))
+    assert sample_folds(pool, 50, seed=0) == sample_folds(pool, 50, seed=0)
+    assert sample_folds(pool, 50, seed=0) != sample_folds(pool, 50, seed=1)
+    got = sample_folds(pool, 50, seed=0)
+    assert len(got) == len(set(got)) == 50
+    assert set(got) <= set(pool)
+    assert got == sorted(got)
+
+
+def test_fold_sampling_is_not_a_prefix():
+    """A prefix of leave-one-out folds would be the oldest publications, since folds are indexed
+    by sorted ChEMBL document id. The draw must spread across the range."""
+    from scripts.run_sota import sample_folds
+    got = sample_folds(list(range(209)), 50, seed=0)
+    assert got != list(range(50))
+    assert max(got) > 150                      # reaches the recent publications
+    assert sum(s >= 104 for s in got) >= 15    # a fair share from the back half
+
+
+def test_fold_sampling_returns_everything_when_asked_for_too_many():
+    from scripts.run_sota import sample_folds
+    assert sample_folds([3, 1, 2], 10) == [3, 1, 2]

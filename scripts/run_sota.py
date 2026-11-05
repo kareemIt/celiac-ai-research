@@ -320,12 +320,25 @@ def _fmt(cfg):
     return ", ".join(f"{k}={v}" for k, v in cfg.items() if k not in skip)
 
 
-def load_folds(split, seeds, path=SPLITS, only=None):
+def sample_folds(available, n, seed=0):
+    """A reproducible random subset of `n` fold ids, or all of them if there are fewer.
+
+    Drawn at random rather than taken as a prefix: leave-one-publication-out folds are indexed by
+    sorted ChEMBL document id, which tracks publication date, so the first n would be a sample of
+    the oldest papers. Sorted on return so the run order does not depend on the draw.
+    """
+    if n >= len(available):
+        return list(available)
+    rng = np.random.default_rng(seed)
+    return sorted(int(s) for s in rng.choice(np.asarray(available), size=n, replace=False))
+
+
+def load_folds(split, seeds, path=SPLITS, only=None, sample=None, sample_seed=0):
     """Yield one dict per fold, carrying the molecules and the index arrays into them.
 
-    `only` selects an explicit set of fold ids, for sampling leave-one-publication-out folds. It is
-    needed because folds there are indexed by sorted ChEMBL document id, which tracks publication
-    date, so `seeds` -- a prefix -- would sample the oldest papers rather than a cross-section.
+    `only` selects an explicit set of fold ids. `sample` instead draws that many at random from
+    the folds that exist, which is how a leave-one-publication-out arm is costed down without
+    biasing it towards early publications -- see sample_folds.
     """
     # low_memory=False: held_out_paper is empty for the seeded protocols and a ChEMBL id for
     # paper_lopo, and chunked inference on MAO-B's 1.28M rows would type the column per chunk.
@@ -341,6 +354,8 @@ def load_folds(split, seeds, path=SPLITS, only=None):
             raise SystemExit(f"folds {sorted(missing)} not in {path} for split {split!r}")
     else:
         want = available if seeds is None else [s for s in available if s < seeds]
+    if sample is not None:
+        want = sample_folds(want, sample, sample_seed)
     for seed in want:
         g = d[d.seed == seed]
         order = {"train": 0, "valid": 1, "test": 2}
@@ -365,9 +380,9 @@ def peak_vram():
     return np.nan
 
 
-def run(model, split, seeds, splits_path=SPLITS, only=None):
+def run(model, split, seeds, splits_path=SPLITS, only=None, sample=None):
     rows, preds = [], []
-    for fold in load_folds(split, seeds, splits_path, only):
+    for fold in load_folds(split, seeds, splits_path, only, sample):
         te = fold["idx"][2]
         y_te = fold["y"][te]
         try:
@@ -415,6 +430,9 @@ def main():
     ap.add_argument("--seeds", type=int, default=None, help="use seeds < N; default all exported")
     ap.add_argument("--only-seeds", default=None,
                     help="comma-separated fold ids to run instead, e.g. a random LOPO sample")
+    ap.add_argument("--sample-folds", type=int, default=None,
+                    help="run this many folds, drawn at random with a fixed seed; for costing "
+                         "down a leave-one-publication-out arm without biasing it to old papers")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -430,7 +448,8 @@ def main():
     failed = {}
     for model in models:
         try:
-            rows, preds = run(model, args.split, args.seeds, splits_path, only)
+            rows, preds = run(model, args.split, args.seeds, splits_path, only,
+                              args.sample_folds)
         except Exception as e:  # one entrant's environment must not take the others down
             print(f"  {model}: FAILED -- {e}", file=sys.stderr, flush=True)
             failed[model] = str(e).splitlines()[0]
