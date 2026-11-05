@@ -109,11 +109,25 @@ def risk_coverage(y, p, levels=(1.0, 0.8, 0.6, 0.4, 0.2)):
     return {c: float(wrong[:max(1, int(round(c * len(y))))].mean()) for c in levels}
 
 
-def main(models, alphas, cal_frac, split, splits_path, pred_path, out_path):
+def main(models, alphas, cal_frac, split, splits_path, pred_path, out_path, resume=False):
     rng = np.random.default_rng(0)
-    rows = []
+    rows, done = [], set()
+
+    # Each fold's summary rows are appended to a sidecar as they are computed, and the real summary
+    # is still written whole at the end from `rows` -- so out_path's content and row order are
+    # exactly what they were before this was added, and TG2's published file is unaffected. The
+    # sidecar exists because a WSL restart killed a 10-fold CDK2 run after 3 folds: the
+    # per-molecule file had survived (it is appended per fold) but the summary was in memory only.
+    partial_path = f"{out_path}.partial"
+    if resume and os.path.exists(partial_path):
+        prev = pd.read_csv(partial_path)
+        rows = prev.to_dict("records")
+        done = set(prev["fold"].unique())
+        print(f"resuming: {len(done)} folds already in {partial_path} -> skipping {sorted(done)}")
 
     for fold in load_folds(split, None, splits_path):
+        if fold["seed"] in done:
+            continue
         tr, va, te = fold["idx"]
         y, smiles = fold["y"], fold["smiles"]
         cal_g, fit_g, held = group_calibration(fold["papers"], tr, cal_frac, rng)
@@ -127,6 +141,7 @@ def main(models, alphas, cal_frac, split, splits_path, pred_path, out_path):
             print("   skipped: no group calibration set available")
             continue
 
+        fold_rows_start = len(rows)                  # for this fold's checkpoint, written below
         regimes = {"group": (fit_g, cal_g), "iid": (fit_i, cal_i)}
         preds = {}                                   # (regime, model) -> (p_cal, p_test)
         for regime, (fit_idx, cal_idx) in regimes.items():
@@ -186,8 +201,16 @@ def main(models, alphas, cal_frac, split, splits_path, pred_path, out_path):
                          "n_test": len(te),
                          **{f"error_at_{int(c * 100)}pct_coverage": v for c, v in rc.items()}})
 
+        # checkpoint this fold's rows (conformal rows added earlier in the loop, plus the
+        # risk-coverage ones just appended) so a kill does not lose completed folds
+        os.makedirs("results", exist_ok=True)
+        pd.DataFrame(rows[fold_rows_start:]).to_csv(
+            partial_path, mode="a", header=not os.path.exists(partial_path), index=False)
+
     os.makedirs("results", exist_ok=True)
     pd.DataFrame(rows).to_csv(out_path, index=False)
+    if os.path.exists(partial_path):
+        os.remove(partial_path)
     print(f"\nwrote {out_path} and {pred_path}")
 
 
@@ -198,12 +221,22 @@ if __name__ == "__main__":
     ap.add_argument("--cal-frac", type=float, default=0.25)
     ap.add_argument("--target", default="tg2", choices=["tg2", "cdk2", "maob"])
     ap.add_argument("--split", default=SPLIT, choices=["paper_lopo", "paper_grouped"])
+    ap.add_argument("--resume", action="store_true",
+                    help="keep the folds already written and carry on from the next one")
     a = ap.parse_args()
 
     from scripts.run_sota import paths
     splits_path, _, _ = paths(a.target)
     pred_path, out_path = conformal_paths(a.target, a.split)
-    if os.path.exists(pred_path):
+    if os.path.exists(pred_path) and not a.resume:
         os.remove(pred_path)                         # the per-molecule file is appended to
+    elif a.resume and os.path.exists(pred_path) and not os.path.exists(f"{out_path}.partial"):
+        # Both files are append-only and must stay in step. A per-molecule file with no summary
+        # sidecar comes from a run that predates checkpointing: resuming would re-run those folds
+        # and append their molecules a second time, silently double-counting them in every pooled
+        # metric. Refuse instead, and say which file to remove.
+        raise SystemExit(
+            f"{pred_path} exists but {out_path}.partial does not, so the completed folds have no\n"
+            f"summary rows to resume from. Delete {pred_path} and run without --resume.")
     main(a.models.split(","), [float(x) for x in a.alphas.split(",")], a.cal_frac,
-         a.split, splits_path, pred_path, out_path)
+         a.split, splits_path, pred_path, out_path, a.resume)
