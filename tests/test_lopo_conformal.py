@@ -123,3 +123,75 @@ def test_risk_coverage_falls_when_confidence_is_informative():
 
 def test_risk_coverage_keeps_at_least_one_molecule():
     assert risk_coverage(np.array([1]), np.array([0.9]))[0.2] == 0.0
+
+
+def _fake_fold(seed, n=40):
+    """One synthetic fold shaped like load_folds' output: train, valid, test index arrays."""
+    y = np.array([0, 1] * (n // 2))
+    idx = np.arange(n)
+    tr, va, te = idx[: n - 12], idx[n - 12 : n - 6], idx[n - 6 :]
+    return {"split": "paper_grouped", "seed": seed,
+            "smiles": [f"C{seed}_{i}" for i in range(n)], "y": y, "idx": (tr, va, te),
+            "paper": np.nan,
+            "papers": [f"P{seed}_{i % 6}" for i in range(n)]}
+
+
+def _run(tmp_path, monkeypatch, folds, resume=False):
+    """Drive main() with fake folds and a trivial entrant, writing into tmp_path."""
+    import scripts.run_lopo_conformal as mod
+    monkeypatch.setattr(mod, "load_folds", lambda *a, **k: iter(folds))
+    monkeypatch.setattr(mod, "morgan", lambda smiles: np.eye(len(smiles), dtype=np.uint8))
+    monkeypatch.setattr(mod, "tanimoto_to_train", lambda a, b: np.zeros(len(a)))
+    monkeypatch.setattr(mod, "ENTRANTS", {
+        "logreg": lambda name, fold, seed: (np.full(len(fold["idx"][2]), 0.6), {})})
+    pred = str(tmp_path / "pred.csv")
+    out = str(tmp_path / "summary.csv")
+    mod.main(["logreg"], [0.1], 0.25, "paper_grouped", "unused", pred, out, resume)
+    return pred, out
+
+
+def test_each_fold_is_checkpointed_as_it_finishes(tmp_path, monkeypatch):
+    """The sidecar must exist with every completed fold, so a kill loses nothing."""
+    import scripts.run_lopo_conformal as mod
+    folds = [_fake_fold(s) for s in range(3)]
+    kept = {}
+
+    real_to_csv = pd.DataFrame.to_csv
+
+    def spy(self, path_or_buf=None, *a, **k):
+        if isinstance(path_or_buf, str) and path_or_buf.endswith(".partial"):
+            kept.setdefault("writes", 0)
+            kept["writes"] += 1
+        return real_to_csv(self, path_or_buf, *a, **k)
+
+    monkeypatch.setattr(pd.DataFrame, "to_csv", spy)
+    _run(tmp_path, monkeypatch, folds)
+    assert kept.get("writes") == 3                     # one checkpoint append per fold
+
+
+def test_the_sidecar_is_removed_once_the_summary_is_written(tmp_path, monkeypatch):
+    _, out = _run(tmp_path, monkeypatch, [_fake_fold(s) for s in range(2)])
+    assert os.path.exists(out)
+    assert not os.path.exists(f"{out}.partial")
+
+
+def test_resume_skips_the_folds_already_in_the_sidecar(tmp_path, monkeypatch):
+    """A resumed run must not recompute, and must not lose, the folds already done."""
+    import scripts.run_lopo_conformal as mod
+    folds = [_fake_fold(s) for s in range(3)]
+    _, out = _run(tmp_path, monkeypatch, folds[:2])
+    # rebuild the sidecar from the completed summary, as a killed run would have left it
+    pd.read_csv(out).to_csv(f"{out}.partial", index=False)
+
+    seen = []
+    monkeypatch.setattr(mod, "load_folds", lambda *a, **k: iter(folds))
+    pred2 = str(tmp_path / "pred2.csv")
+    monkeypatch.setattr(mod, "morgan", lambda smiles: np.eye(len(smiles), dtype=np.uint8))
+    monkeypatch.setattr(mod, "tanimoto_to_train", lambda a, b: np.zeros(len(a)))
+    monkeypatch.setattr(mod, "ENTRANTS", {"logreg": lambda name, fold, seed: (
+        seen.append(fold["seed"]) or np.full(len(fold["idx"][2]), 0.6), {})})
+    mod.main(["logreg"], [0.1], 0.25, "paper_grouped", "unused", pred2, out, True)
+
+    assert set(seen) == {2}                            # only the unfinished fold was computed
+    final = pd.read_csv(out)
+    assert set(final["fold"]) == {0, 1, 2}             # and all three are in the summary
