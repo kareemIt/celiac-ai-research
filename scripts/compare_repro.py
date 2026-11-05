@@ -61,12 +61,25 @@ def main(tags):
                      "max_abs_dcurve": dc, "max_abs_dadapter": dw, "d_auroc": da})
 
     out = pd.DataFrame(rows)
+    # A missing adapter checkpoint must never read as agreement. The first version of this verdict
+    # used max_abs_dadapter.fillna(0) == 0, so an absent checkpoint counted as a zero difference
+    # and the script could print BIT-EXACT over weights it had not compared. The committed
+    # results/repro_check.csv holds a real 0.0, so the published claim was measured -- but the
+    # checkpoints have since been deleted, and re-running this today would have said BIT-EXACT
+    # without checking them.
+    unchecked = int(out["max_abs_dadapter"].isna().sum())
+    compared = out.dropna(subset=["max_abs_dadapter"])
     exact = bool(((out.max_abs_dlogodds == 0) & (out.max_abs_dcurve == 0) & out.same_best_epoch).all()
-                 and (out.max_abs_dadapter.fillna(0) == 0).all())
-    print(f"\n## Verdict: {'BIT-EXACT across all runs' if exact else 'runs still differ'}")
+                 and (compared["max_abs_dadapter"] == 0).all())
+    scope = "predictions and adapter weights" if not unchecked else "predictions ONLY"
+    print(f"\n## Verdict: {'bit-exact' if exact else 'runs still differ'} on {scope}")
+    if unchecked:
+        print(f"  {unchecked} of {len(out)} adapter comparisons were SKIPPED -- the checkpoints are"
+              f"\n  absent, so this run says nothing about weight-level determinism. Do not quote"
+              f"\n  it as bit-exact without them.")
     if not exact:
         print("  Residual variation is real and must be reported as the noise floor of any comparison.")
-    out.to_csv(OUT, index=False)
+    out.assign(adapter_comparisons_skipped=unchecked).to_csv(OUT, index=False)
     print(f"wrote {OUT}")
 
 

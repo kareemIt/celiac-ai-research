@@ -111,13 +111,21 @@ def main():
         j = f[key].reindex(idx)
         m[f"outside_{key}"] = j.outside.to_numpy()
         m[f"dup_{key}"] = j.dup.to_numpy()
+    # A flag lookup that misses leaves NaN, and treating NaN as False would report an unlookupable
+    # pair as clean -- understating both counts. The unmatched count is printed instead of filled,
+    # so a silent miss cannot pass for a clean record.
+    unmatched = int(m[["outside_tg2", "outside_f13", "dup_tg2", "dup_f13"]].isna().any(axis=1).sum())
     outside = (m.outside_tg2 | m.outside_f13).fillna(False)
     dup = (m.dup_tg2 | m.dup_f13).fillna(False)
     print(f"\n   ChEMBL 'outside typical range' on one side or both: {int(outside.sum())} pairs")
     print(f"   ChEMBL potential-duplicate flag:                     {int(dup.sum())} pairs")
+    if unmatched:
+        print(f"   WARNING: {unmatched} of {len(m)} pairs had no validity flag to look up; they are"
+              f"\n   counted as unflagged, so both counts above are lower bounds.")
     rows.append({"section": "provenance", "pairs": len(m),
                  "publications": int(m.document_chembl_id.nunique()),
-                 "n_outside_range": int(outside.sum()), "n_potential_dup": int(dup.sum())})
+                 "n_outside_range": int(outside.sum()), "n_potential_dup": int(dup.sum()),
+                 "n_unmatched_flags": unmatched})
 
     print("\n## 2. Are the two measurements in a pair the same kind of experiment?\n")
     m["fmt_tg2"] = m.assay_tg2.map(assay_format)
