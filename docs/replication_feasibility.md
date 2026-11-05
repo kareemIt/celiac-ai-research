@@ -129,10 +129,16 @@ The question of *why* performance drops — chemical similarity, assay differenc
 class balance, chemical series — is answered from the per-molecule predictions the arms already
 write, plus CPU-only controls:
 
-- **Similarity**: similarity-banded AUROC, already implemented in `analyse_sota.py`.
-- **Training-set size**: the scaffold arm re-run at the grouped arm's training size, cheap models
-  only. This is the control that separates "unseen publication" from "less training data".
-- **Class balance**: per-fold positive rate against per-fold AUROC, from existing outputs.
+- **Similarity**: similarity-banded AUROC, already implemented in `analyse_sota.py`. Measured, and
+  it turned out to be the main mechanism rather than one of five: standardising the penalty to
+  either arm's max-Tanimoto composition removes **51-78%** of it across all six models on both
+  targets (`scripts/analyse_confounders.py`). The publication split tests on far more novel
+  chemistry -- 54% of CDK2 test molecules below 0.4 Tanimoto, against 5% under a scaffold split.
+- **Training-set size**: no re-run was needed -- the two arms are matched by construction and the
+  design held, to within 1.1-1.2% of the training set. It explains none of the penalty.
+- **Class balance**: the mean positive rate is identical between arms by construction, since every
+  molecule is tested exactly once in each. Its spread is 1.8x larger in the publication arm, but
+  adjusting for it leaves the penalty unchanged. Also explains none of it.
 - **Assay differences**: see the correction below — this control cannot be built.
 - **Chemical series**: publication-level scaffold entropy against the fold's AUROC drop.
 
@@ -172,6 +178,14 @@ the existing three-target work separates them.
   another seed moves **35% of CDK2 and 57% of MAO-B molecules** between folds. Fold-assignment
   variance is therefore real and estimable; it is not estimated in this audit and the cheap models
   should be re-dealt across several seeds during the run to bound it.
+
+  > **Resolved (2026-11-05).** `scripts/audit_fold_sensitivity.py` bounded it over five deals:
+  > between-deal SD is **9-20x smaller than within-deal SD** on both targets and both arms, and
+  > the matched penalty is stable across deals (CDK2 logreg -0.128, range -0.134 to -0.113; MAO-B
+  > logreg -0.059, range -0.063 to -0.051). Moving a third to a half of the molecules between
+  > folds therefore barely moves the mean, because every molecule is still tested exactly once.
+  > One deal is enough, and the single-seed grouped result in `results/sota_{cdk2,maob}.csv`
+  > stands as reported.
 - This audit does not revisit the provenance decisions of [`second_target.md`](second_target.md)
   (binding assays only, censored rows discarded, first-publication attribution). Those stand, and
   the last of them still means the publication penalty measured on all three targets is slightly
