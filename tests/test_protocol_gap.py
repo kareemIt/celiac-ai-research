@@ -111,3 +111,40 @@ def test_pooled_auroc_can_be_restricted_to_a_molecule_subset():
     keep = {s for s, *_ in series("P1", 0.2)}
     assert "rf" in pooled_auroc(p, keep=keep)
     assert pooled_auroc(p, keep=keep)["rf"] != pooled_auroc(p)["rf"]
+
+
+def test_same_molecules_restriction_drops_a_publication_whose_sets_differ(tmp_path, monkeypatch):
+    """The real asymmetry: a publication arm tests a paper whole, the scaffold arm tests part."""
+    import scripts.analyse_protocol_gap as mod
+    pub_rows = series("P1", 0.2, n=12) + series("P2", 0.5, n=12)
+    p2 = series("P2", 0.5, n=12)
+    # P2 only half-tested in the scaffold arm, keeping both classes so it is still scorable
+    sca_rows = series("P1", 0.2, n=12) + p2[:3] + p2[-3:]
+    monkeypatch.setattr(mod, "predictions",
+                        lambda t, arm: preds(sca_rows if arm == "scaffold_pub" else pub_rows))
+    # with 5 publications required this returns None either way; check the molecule bookkeeping
+    A = mod.per_publication_auroc(mod.one_row_per_molecule(preds(sca_rows)), 5)["rf"]
+    B = mod.per_publication_auroc(mod.one_row_per_molecule(preds(pub_rows)), 5)["rf"]
+    assert set(A) == {"P1", "P2"} and set(B) == {"P1", "P2"}
+    assert A["P2"][1] == 6 and B["P2"][1] == 12          # the asymmetry the flag exists to remove
+
+
+def test_matched_within_publication_needs_five_shared_publications(tmp_path, monkeypatch):
+    import scripts.analyse_protocol_gap as mod
+    rows = series("P1", 0.2, n=12) + series("P2", 0.5, n=12)
+    monkeypatch.setattr(mod, "predictions", lambda t, arm: preds(rows))
+    assert mod.matched_within_publication("cdk2", boot=0) is None
+
+
+def test_matched_within_publication_reports_zero_when_the_arms_are_identical(monkeypatch):
+    import scripts.analyse_protocol_gap as mod
+    rows = []
+    for k in range(8):
+        rows += series(f"P{k}", 0.1 * k, n=12)
+    monkeypatch.setattr(mod, "predictions", lambda t, arm: preds(rows))
+    out = mod.matched_within_publication("cdk2", min_per_paper=10, same_molecules=True, boot=200)
+    r = out.iloc[0]
+    assert np.isclose(r["penalty"], 0.0)
+    assert r["publications"] == 8
+    assert r["molecules_scaffold"] == r["molecules_publication"]
+    assert np.isclose(r["boot_ci_lo"], 0.0) and np.isclose(r["boot_ci_hi"], 0.0)

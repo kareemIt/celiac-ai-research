@@ -103,9 +103,28 @@ def usable_molecules(p, by="paper"):
     return keep
 
 
+def common_molecules(target):
+    """Molecules both publication protocols actually tested.
+
+    On CDK2 both arms cover all 2,078, so this changes nothing. On MAO-B the leave-one-out arm is a
+    random 50-publication sample covering 1,116 molecules against the grouped arm's 5,091, so an
+    unrestricted pooled comparison would compare different molecule sets and the pooled gap would
+    not be a protocol effect at all. Restricting to the intersection is what makes the two
+    comparable.
+    """
+    sets = []
+    for split in PROTOCOLS:
+        p = predictions(target, split)
+        if p.empty:
+            return None
+        sets.append(set(p["smiles"]))
+    return sets[0] & sets[1]
+
+
 def summarise(target):
     rows = []
     cache = {}
+    shared_mols = common_molecules(target)
     for split in PROTOCOLS:
         folds = fold_table(target, split)
         if folds.empty:
@@ -116,6 +135,7 @@ def summarise(target):
         keep = usable_molecules(p) if not p.empty else set()
         pooled_all = pooled_auroc(p) if once else {}
         pooled_keep = pooled_auroc(p, keep) if once else {}
+        pooled_shared = (pooled_auroc(p, shared_mols) if once and shared_mols else {})
 
         for model, g in folds.groupby("model"):
             ok = g.dropna(subset=["auroc"])
@@ -130,6 +150,8 @@ def summarise(target):
                 "macro_sd": float(ok["auroc"].std(ddof=1)),
                 "pooled_molecule": pooled_all.get(model, np.nan),
                 "pooled_molecule_scored_folds_only": pooled_keep.get(model, np.nan),
+                "pooled_molecule_shared_set": pooled_shared.get(model, np.nan),
+                "molecules_shared": len(shared_mols) if shared_mols else np.nan,
                 "n_test_median": float(g["n_test"].median()),
                 "n_test_min": int(g["n_test"].min()), "n_test_max": int(g["n_test"].max()),
                 "n_train_median": float(g["n_train"].median()),
@@ -195,7 +217,7 @@ def one_row_per_molecule(p):
 
 
 def matched_within_publication(target, scaffold_arm="scaffold_pub", pub_arm=None,
-                               min_per_paper=10):
+                               min_per_paper=10, same_molecules=False, boot=2000):
     """The publication penalty with the aggregation unit AND the publications held fixed.
 
     The headline penalty compares a molecule-pooled scaffold score against a publication-macro
@@ -209,31 +231,63 @@ def matched_within_publication(target, scaffold_arm="scaffold_pub", pub_arm=None
 
     Paired across publications, which is legitimate here because a publication is the same set of
     molecules in both arms -- unlike fold index, which means different molecules in each.
+
+    `same_molecules` closes the one gap that remains. A publication arm tests a publication's
+    WHOLE set; the scaffold arm tests only the molecules whose scaffold group landed on the test
+    side, keeping the rest in training. So by default the publication arm scores more molecules per
+    publication (CDK2 median 24 against 17) and the scaffold arm's set is a strict subset. With
+    same_molecules=True both arms are restricted to the molecules they both tested, and a
+    publication is kept only if that restriction leaves the two sets identical, so the two AUROCs
+    are computed on exactly the same molecules.
+
+    `boot` adds a publication-clustered bootstrap of the paired mean difference, resampling
+    publications rather than molecules. On the real data it agrees closely with the paired-t
+    interval, which is worth knowing: the parametric interval was adequate.
     """
     from scipy.stats import ttest_rel
     pub_arm = pub_arm or ("paper_lopo" if target == "tg2" else "paper_grouped")
     a_raw, b_raw = predictions(target, scaffold_arm), predictions(target, pub_arm)
     if a_raw.empty or b_raw.empty:
         return None
-    A = per_publication_auroc(one_row_per_molecule(a_raw), min_per_paper)
-    B = per_publication_auroc(one_row_per_molecule(b_raw), min_per_paper)
+    A_mol, B_mol = one_row_per_molecule(a_raw), one_row_per_molecule(b_raw)
 
     rows = []
-    for model in sorted(set(A) & set(B)):
-        shared = sorted(set(A[model]) & set(B[model]))
+    for model in sorted(set(A_mol["model"]) & set(B_mol["model"])):
+        a_m = A_mol[A_mol["model"] == model]
+        b_m = B_mol[B_mol["model"] == model]
+        if same_molecules:
+            common = set(a_m["smiles"]) & set(b_m["smiles"])
+            a_m = a_m[a_m["smiles"].isin(common)]
+            b_m = b_m[b_m["smiles"].isin(common)]
+        A = per_publication_auroc(a_m, min_per_paper)[model]
+        B = per_publication_auroc(b_m, min_per_paper)[model]
+        shared = sorted(set(A) & set(B))
+        if same_molecules:
+            by_pub_a = {p: set(g["smiles"]) for p, g in a_m.groupby("paper")}
+            by_pub_b = {p: set(g["smiles"]) for p, g in b_m.groupby("paper")}
+            shared = [p for p in shared if by_pub_a.get(p) == by_pub_b.get(p)]
         if len(shared) < 5:
             continue
-        a = np.array([A[model][k][0] for k in shared])
-        b = np.array([B[model][k][0] for k in shared])
+        a = np.array([A[k][0] for k in shared])
+        b = np.array([B[k][0] for k in shared])
         tt = ttest_rel(b, a)
         ci = tt.confidence_interval(0.95)
-        rows.append({"target": target, "model": model, "scaffold_arm": scaffold_arm,
-                     "pub_arm": pub_arm, "publications": len(shared),
-                     "within_pub_scaffold": float(a.mean()),
-                     "within_pub_publication": float(b.mean()),
-                     "penalty": float(b.mean() - a.mean()),
-                     "ci_lo": float(ci.low), "ci_hi": float(ci.high),
-                     "p_paired": float(tt.pvalue)})
+        row = {"target": target, "model": model, "scaffold_arm": scaffold_arm,
+               "pub_arm": pub_arm, "same_molecules": same_molecules,
+               "publications": len(shared),
+               "molecules_scaffold": int(a_m[a_m["paper"].isin(shared)].shape[0]),
+               "molecules_publication": int(b_m[b_m["paper"].isin(shared)].shape[0]),
+               "within_pub_scaffold": float(a.mean()),
+               "within_pub_publication": float(b.mean()),
+               "penalty": float(b.mean() - a.mean()),
+               "ci_lo": float(ci.low), "ci_hi": float(ci.high),
+               "p_paired": float(tt.pvalue)}
+        if boot:
+            rng = np.random.default_rng(0)
+            diffs = b - a
+            draws = [diffs[rng.integers(0, len(diffs), len(diffs))].mean() for _ in range(boot)]
+            row["boot_ci_lo"], row["boot_ci_hi"] = np.percentile(draws, [2.5, 97.5])
+        rows.append(row)
     return pd.DataFrame(rows) if rows else None
 
 
@@ -283,28 +337,34 @@ def main():
             print(f"   every molecule tested exactly once: {bool(r0['tested_once'])}"
                   + (f"; {int(r0['molecules_scored'])} of {int(r0['molecules_total'])} molecules "
                      f"sit in a scorable fold" if r0["tested_once"] else ""))
-            print(f"   {'model':<9}{'macro':>9}{'macro wtd':>11}{'pooled':>9}"
-                  f"{'pooled scored':>15}")
+            print(f"   {'model':<17}{'macro':>9}{'macro wtd':>11}{'pooled':>9}"
+                  f"{'pooled scored':>15}{'pooled shared':>15}")
             for _, r in s.iterrows():
-                print(f"   {r['model']:<9}{r['macro_unweighted']:>9.3f}"
+                print(f"   {r['model']:<17}{r['macro_unweighted']:>9.3f}"
                       f"{r['macro_size_weighted']:>11.3f}{r['pooled_molecule']:>9.3f}"
-                      f"{r['pooled_molecule_scored_folds_only']:>15.3f}")
+                      f"{r['pooled_molecule_scored_folds_only']:>15.3f}"
+                      f"{r['pooled_molecule_shared_set']:>15.3f}")
 
         wide = tab.pivot_table(index="model", columns="split",
                                values=["macro_unweighted", "macro_size_weighted",
-                                       "pooled_molecule"])
+                                       "pooled_molecule_shared_set"])
         if all(s in tab["split"].values for s in PROTOCOLS):
-            print(f"\n  the gap, by how the score is formed (grouped minus leave-one-out)")
-            print(f"   {'model':<9}{'macro':>9}{'macro wtd':>11}{'pooled':>9}")
+            n_shared = tab["molecules_shared"].dropna()
+            print(f"\n  the gap, by how the score is formed (grouped minus leave-one-out).")
+            print(f"  'pooled' is computed on the "
+                  f"{int(n_shared.iloc[0]) if len(n_shared) else 0} molecules BOTH protocols"
+                  f" tested,\n  without which the two arms would be scored on different sets.")
+            print(f"   {'model':<17}{'macro':>9}{'macro wtd':>11}{'pooled':>9}")
             for model in wide.index:
                 vals = []
-                for key in ("macro_unweighted", "macro_size_weighted", "pooled_molecule"):
+                for key in ("macro_unweighted", "macro_size_weighted",
+                            "pooled_molecule_shared_set"):
                     try:
                         vals.append(wide.loc[model, (key, "paper_grouped")]
                                     - wide.loc[model, (key, "paper_lopo")])
                     except KeyError:
                         vals.append(np.nan)
-                print(f"   {model:<9}" + "".join(f"{v:>+9.3f}" if i == 0 else
+                print(f"   {model:<17}" + "".join(f"{v:>+9.3f}" if i == 0 else
                                                  (f"{v:>+11.3f}" if i == 1 else f"{v:>+9.3f}")
                                                  for i, v in enumerate(vals)))
 
@@ -326,17 +386,27 @@ def main():
                                               "split": split, "model": model,
                                               "pooled_molecule": pooled.get(model, np.nan), **v}]))
 
-        mw = matched_within_publication(target)
-        if mw is not None:
-            print(f"\n  the publication penalty with BOTH the aggregation unit and the"
-                  f"\n  publications held fixed ({int(mw['publications'].iloc[0])} publications, "
-                  f"paired)")
-            print(f"   {'model':<18}{'scaffold':>10}{'publication':>13}{'penalty':>10}"
-                  f"{'95% CI':>20}{'p':>8}")
+        print(f"\n  the publication penalty with the aggregation unit and the publications held"
+              f"\n  fixed. 'same mols' also restricts both arms to the molecules they both tested,"
+              f"\n  because a publication arm tests a publication whole while the scaffold arm"
+              f"\n  tests only the part whose scaffolds landed on the test side.")
+        printed = False
+        for same in (False, True):
+            mw = matched_within_publication(target, same_molecules=same)
+            if mw is None:
+                continue
+            if not printed:
+                print(f"   {'model':<18}{'variant':<11}{'scaffold':>9}{'pub':>8}{'penalty':>9}"
+                      f"{'95% CI':>20}{'bootstrap CI':>20}{'pubs':>6}")
+                printed = True
+            label = "same mols" if same else "all mols"
             for _, r in mw.iterrows():
-                print(f"   {r['model']:<18}{r['within_pub_scaffold']:>10.3f}"
-                      f"{r['within_pub_publication']:>13.3f}{r['penalty']:>+10.3f}"
-                      f"{f'[{r.ci_lo:+.3f}, {r.ci_hi:+.3f}]':>20}{r['p_paired']:>8.3f}")
+                boot = (f"[{r.boot_ci_lo:+.3f}, {r.boot_ci_hi:+.3f}]"
+                        if "boot_ci_lo" in r and pd.notna(r.get("boot_ci_lo")) else "-")
+                print(f"   {r['model']:<18}{label:<11}{r['within_pub_scaffold']:>9.3f}"
+                      f"{r['within_pub_publication']:>8.3f}{r['penalty']:>+9.3f}"
+                      f"{f'[{r.ci_lo:+.3f}, {r.ci_hi:+.3f}]':>20}{boot:>20}"
+                      f"{int(r['publications']):>6}")
             allrows.append(mw.assign(section="matched_within_publication"))
 
         se = size_effect(cache)
