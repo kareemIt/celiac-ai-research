@@ -874,6 +874,17 @@ than ranking across a whole screening set, because the easy between-series contr
 TG2's headline 0.854 → 0.612 compares a molecule-pooled scaffold score against a
 publication-macro leave-one-out score, so part of that gap is the change of question.
 
+**Which claims in this paper this does and does not touch.** The aggregation confound applies only
+where a pooled score is compared against a publication-macro one. §5.9's CDK2 and MAO-B numbers
+(0.898 → 0.830 and 0.865 → 0.789) are **not** affected: `scripts/run_second_target.py` builds its
+paper arm with `chem.group_split` at 80/10/10, so its test set holds many whole publications, and
+`evaluate` reports a pooled one-row-per-molecule AUROC for *both* arms. Those comparisons are
+aggregation-matched and stand as reported. Verified directly: on the matched molecule set the
+pooled score shows no protocol gap at all (CDK2 −0.004 to −0.016, MAO-B −0.025 on the 1,116
+molecules both protocols tested), while the macro score differs by +0.13 to +0.18. The novelty
+qualification below applies to all of these numbers; the aggregation one applies only to TG2's
+leave-one-out arm.
+
 *Novelty.* A publication split also shifts the test set towards novel chemistry, because a paper's
 whole series leaves at once: 54% of CDK2's publication-arm test molecules sit below 0.4
 max-Tanimoto to training, against 5% of its scaffold-arm molecules. Standardising to either arm's

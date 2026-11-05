@@ -118,7 +118,10 @@ def main(models, alphas, cal_frac, split, splits_path, pred_path, out_path):
         y, smiles = fold["y"], fold["smiles"]
         cal_g, fit_g, held = group_calibration(fold["papers"], tr, cal_frac, rng)
         cal_i, fit_i = iid_calibration(tr, cal_frac, rng)
-        print(f"\nfold {fold['seed']:>2} (held out {fold['paper']}): test {len(te)}, "
+        # paper_lopo names the one held-out publication; paper_grouped holds out a block of them
+        # and carries no single name, so printing fold["paper"] there showed "held out nan".
+        held_label = fold["paper"] if isinstance(fold["paper"], str) else "a block of publications"
+        print(f"\nfold {fold['seed']:>2} (held out {held_label}): test {len(te)}, "
               f"group-cal {len(cal_g)} from {len(held)} papers, iid-cal {len(cal_i)}")
         if len(cal_g) == 0 or len(fit_g) == 0:
             print("   skipped: no group calibration set available")

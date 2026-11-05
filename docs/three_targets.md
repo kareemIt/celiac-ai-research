@@ -70,6 +70,19 @@ the pooled score to the 1,637 of 2,078 molecules in scorable folds moves the ran
 0.806 to 0.804; and leave-one-out trains on *more* data (1,856 against 1,685), so training size
 works against it.
 
+Verified on the molecules **both** protocols tested, which matters on MAO-B: its leave-one-out arm
+is a random 50-publication sample covering 1,116 molecules against the grouped arm's 5,091, and an
+unrestricted pooled comparison read +0.047 purely because the two arms were scored on different
+sets. Restricted to the shared 1,116 it is **−0.025** — leave-one-out marginally ahead, matching
+CDK2, where both arms already covered the same 2,078 molecules.
+
+**Which published numbers this touches.** Only comparisons that put a pooled score against a
+publication-macro one. `docs/second_target.md`'s CDK2 and MAO-B penalties (0.898 → 0.830,
+0.865 → 0.789) are **not** affected: `run_second_target.py` uses an 80/10/10 `group_split`, so its
+paper-arm test set holds many whole publications, and `evaluate` reports a pooled
+one-row-per-molecule AUROC for both arms. Those are aggregation-matched and stand. TG2's
+0.854 → 0.612 is the one that is not.
+
 **The two metrics answer different questions.** Macro-over-publications is the score on a typical
 *publication* — can the model rank compounds inside one paper's congeneric series, which is what a
 campaign facing one new paper sees. Pooled molecule-level AUROC is the score on a typical
@@ -127,11 +140,21 @@ scored in both arms, restricted to the publications both arms can score, paired 
 This removes both confounds at once and asks only: can a model rank compounds within a paper's
 series better having seen part of that series than not?
 
-| target | penalty range | intervals excluding zero | publications |
-|---|---|---|---|
-| CDK2 | −0.043 to −0.093 | 3 of 6 | 37 |
-| MAO-B | **+0.009 to +0.060** | 3 of 6, favouring the held-out arm | 97 |
-| TG2 (LOPO) | −0.096 to +0.073 | 0 of 10 | 10 |
+A publication arm tests a publication's whole set; the scaffold arm tests only the part whose
+scaffold group landed on the test side. So the default comparison still scores different molecules
+(CDK2: 810 against 1,052, the scaffold arm a strict subset). The `same mols` variant restricts both
+arms to the molecules they both tested and keeps a publication only if that leaves the two sets
+identical. Intervals are paired-t; a publication-clustered bootstrap (2,000 draws) agrees
+throughout, so the parametric interval is adequate here.
+
+| target | all molecules | same molecules | intervals excluding zero (same mols) | publications |
+|---|---|---|---|---|
+| CDK2 | −0.043 to −0.093 | **−0.034 to −0.110** | 2 of 6 (rf −0.110 [−0.192, −0.044], xgb −0.110 [−0.203, −0.023]) | 37 |
+| MAO-B | +0.009 to +0.060 | **+0.007 to +0.062** | 3 of 6 (xgb +0.062 [+0.019, +0.104], logreg +0.051, ChemBERTa-ft +0.055) | 97 |
+| TG2 (LOPO) | −0.096 to +0.073 | −0.097 to +0.061 | 0 of 10 | 10 |
+
+The sign conflict **survives** the molecule-set restriction and the clustered bootstrap. XGBoost is
+−0.110 on CDK2 and +0.062 on MAO-B, both significant — the same model, opposite directions.
 
 CDK2 and MAO-B disagree in **sign**, both with intervals excluding zero for half their models. So
 "holding out a publication reduces performance" is not supported as a general claim once the
