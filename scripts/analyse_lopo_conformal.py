@@ -5,8 +5,9 @@ those, and all of it again inside similarity bands. Pooled over molecules rather
 folds, because LOPO folds range from 10 to 106 molecules and a fold mean would weight a 10-molecule
 publication like a 106-molecule one.
 
-Usage: python scripts/analyse_lopo_conformal.py
+Usage: python scripts/analyse_lopo_conformal.py [--target cdk2] [--split paper_grouped]
 """
+import argparse
 import os
 import sys
 
@@ -16,9 +17,16 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from scripts.run_lopo_conformal import BAND_EDGES, OUT, PRED
+from scripts.run_lopo_conformal import BAND_EDGES, OUT, PRED, SPLIT, conformal_paths
 
 STATS = "results/lopo_conformal_stats.csv"
+
+
+def stats_path(target, split):
+    """TG2's published filename is kept exactly; a replication target gets its own."""
+    if target == "tg2" and split == SPLIT:
+        return STATS
+    return f"results/conformal_{target}_{split}_stats.csv"
 
 ORDER = ["rf", "xgb", "logreg", "ensemble", "chemberta_frozen", "chemberta_ft"]
 LABELS = {"rf": "random forest", "xgb": "XGBoost", "logreg": "logistic regression",
@@ -51,12 +59,15 @@ def table(d, by):
     return out.reset_index()
 
 
-def main():
-    if not (os.path.exists(PRED) and os.path.exists(OUT)):
-        raise SystemExit(f"run scripts/run_lopo_conformal.py first ({PRED} missing)")
+def main(target="tg2", split=SPLIT):
+    pred_path, out_path = conformal_paths(target, split)
+    stats_out = stats_path(target, split)
+    if not (os.path.exists(pred_path) and os.path.exists(out_path)):
+        raise SystemExit(f"run scripts/run_lopo_conformal.py --target {target} "
+                         f"--split {split} first ({pred_path} missing)")
     rows_out = []
-    preds = pd.read_csv(PRED)
-    summary = pd.read_csv(OUT)
+    preds = pd.read_csv(pred_path)
+    summary = pd.read_csv(out_path)
     conf = summary[summary.section == "conformal"]
     alphas = sorted(preds.alpha.unique())
     models = [m for m in ORDER if m in set(preds.model)]
@@ -154,9 +165,13 @@ def main():
                          "mean_delta": float(d.mean()), "ttest_p": float(t.pvalue),
                          "sign_p": float(sign), "n_rf_worse": int((d > 0).sum())})
 
-    pd.DataFrame(rows_out).to_csv(STATS, index=False)
-    print(f"\nwrote {STATS}")
+    pd.DataFrame(rows_out).to_csv(stats_out, index=False)
+    print(f"\nwrote {stats_out}")
 
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--target", default="tg2", choices=["tg2", "cdk2", "maob"])
+    ap.add_argument("--split", default=SPLIT, choices=["paper_lopo", "paper_grouped"])
+    a = ap.parse_args()
+    main(a.target, a.split)
