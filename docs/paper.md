@@ -40,10 +40,12 @@ family cannot expand the dataset where it is weakest, and that covalent inhibiti
 CI [−0.101, +0.011]). We then test three of the first four failures on an independent target, CDK2 (2,646 molecules, 351
 publications, chemically unrelated to TG2) and again on MAO-B (5,840 molecules, 414 publications).
 All three reproduce in direction and mechanism while differing in magnitude, and both independent
-targets agree that the publication split costs more than the scaffold split. Publication-level confounding reproduces most strongly, costing more than
-scaffold splitting (AUROC 0.898 → 0.830) on a large, diverse dataset whose positives are spread
-across hundreds of papers — contrary to our own pre-registered prediction that it would not appear
-there. The second target also corrects us: TG2's finding that models rank at chance below 0.4
+targets agree that the publication split costs more than the scaffold split, on a large, diverse
+dataset whose positives are spread across hundreds of papers — contrary to our own pre-registered
+prediction that it would not appear there. **Its attribution is corrected in §5.14**: most of that
+difference is the unit the metric is averaged over plus the novelty of the molecules a publication
+split places in the test set, and any remainder is confounded between publication identity and
+assay protocol, so we no longer describe it as publication-level confounding. The second target also corrects us: TG2's finding that models rank at chance below 0.4
 Tanimoto does **not** generalise, as CDK2 retains AUROC 0.739 in that regime, so the applicability
 floor is a per-dataset quantity rather than a constant.
 
@@ -126,13 +128,14 @@ before-and-after effect size:
 | Random-split leakage | Baseline model selection | AUROC 0.95 → 0.87 |
 | Pooling across overlapping folds | Novel-chemistry hypothesis | +0.013 → −0.019 (hypothesis withdrawn) |
 | Training nondeterminism | KL-regularisation ablation | Noise floor −0.028 ± 0.089 → exactly 0 |
-| Publication-level confounding | Selectivity classification | AUROC 0.974 → 0.574 |
+| Publication-held-out evaluation (attribution corrected, §5.14) | Selectivity classification | AUROC 0.974 → 0.574 |
 | A guarantee carried outside its shift | Conformal calibration recipe | Coverage 0.784 → 0.914 against a 0.90 target |
 | Inferring a difference from its components | "Potency enriches cross-reactivity" | 13.6% → 46.7% gate pass rate (claim withdrawn) |
 
 These are not six instances of one problem. Leakage is about molecular redundancy; pooling is
 about the independence assumption in a confidence interval; nondeterminism is about numerical
-reproducibility on GPU hardware; publication-level confounding is about where the data came from;
+reproducibility on GPU hardware; the publication-held-out decline is about the novelty and the measurement protocol of what is
+held out (§5.14);
 the fifth is about the scope condition attached to a distribution-free guarantee; and the sixth is
 not a protocol error at all but a reasoning error of ours, caught only by computing the quantity we
 actually cared about instead of a correlate of it. Each requires a different control, and standard
@@ -659,7 +662,7 @@ because one laboratory's series spans several Murcko scaffolds.
 |---|---|---|---|
 | Random-split leakage | 38.6% identical, ≈0.08 AUROC | 7.3% identical, 0.030 AUROC | Reproduces, milder |
 | Pooled predictions | severe (cached, up to 10×) | 18% interval narrowing (1.6×) | Reproduces, milder |
-| Publication confounding | 0.974 → 0.574 | 0.898 → 0.830 | **Reproduces, largest effect** |
+| Publication-held-out decline | 0.974 → 0.574 | 0.898 → 0.830 | Reproduces; **attribution corrected in §5.14** |
 | Nondeterminism | −0.028 ± 0.089 | not retested (no GPU training) | Untested |
 | Chance below 0.4 Tanimoto | yes | **no — AUROC 0.739** | **Does not transfer** |
 
@@ -843,6 +846,79 @@ guarantee conformal prediction does not make, printed rather than elided. ChemBE
 only usable risk–coverage curve (0.358 → 0.227) but the paired per-fold difference from the random
 forest is not significant (p = 0.63–0.91, random forest worse in 2–5 of 11 folds): the same
 inconclusive shape as §5.11, reached from an independent metric.
+
+---
+
+### 5.14 The publication-held-out decline is mostly novelty and aggregation, not publication identity — *correction to §5.9*
+
+Added 2026-11-05, after extending the model field to six entrants on both replication targets
+(`docs/replication_feasibility.md`, `scripts/analyse_protocol_gap.py`,
+`scripts/validate_novelty_share.py`). This section corrects the *attribution* of the decline
+reported in §5.9 and in the abstract. The decline itself is not withdrawn: it reproduces in
+direction on every entrant of all three targets.
+
+**What reproduces.** With matched molecules and matched training-set size, every one of six models
+loses AUROC under publication hold-out on both replication targets. The magnitude shrinks sharply
+with dataset size: mean penalty −0.198 (TG2, 394 molecules), −0.096 (CDK2, 2,078), −0.042 (MAO-B,
+5,091). On MAO-B no per-model penalty survives Holm correction.
+
+**Three reasons the decline cannot be attributed to publication identity.**
+
+*Aggregation.* Leave-one-publication-out macro-averages one AUROC per publication; a scaffold arm's
+pooled score averages over molecules. These answer different questions, and the difference is
+large. On CDK2 the random forest scores 0.617 under leave-one-out macro and 0.786 under grouped
+K-fold macro, yet **pooled molecule-level AUROC is the same under both protocols** (0.806 against
+0.802). Re-aggregating the grouped arm's own predictions by publication reproduces leave-one-out's
+numbers exactly. Ranking compounds inside one paper's congeneric series is simply a harder task
+than ranking across a whole screening set, because the easy between-series contrasts are gone.
+TG2's headline 0.854 → 0.612 compares a molecule-pooled scaffold score against a
+publication-macro leave-one-out score, so part of that gap is the change of question.
+
+*Novelty.* A publication split also shifts the test set towards novel chemistry, because a paper's
+whole series leaves at once: 54% of CDK2's publication-arm test molecules sit below 0.4
+max-Tanimoto to training, against 5% of its scaffold-arm molecules. Standardising to either arm's
+novelty composition removes the majority of the penalty. Point estimates run 47–98% (CDK2) and
+36–81% (MAO-B) across five band definitions; a publication-clustered bootstrap gives, for the
+random forest, 78% [33%, 98%] on CDK2 and 60% [28%, 98%] on MAO-B. **The residual crosses zero for
+every model on both targets** (CDK2 random forest −0.022 [−0.091, +0.038]). This is an
+*association*, not a causal decomposition: see the limitations below.
+
+*Assay.* Whatever residual remains cannot be assigned to publication identity, because
+`scripts/audit_assay_confound.py` establishes that **0 of 380 CDK2 and 0 of 516 MAO-B assays span
+more than one publication**. ChEMBL defines an assay per paper, so an assay-held-out split *is* a
+publication-held-out split. The within-publication contrast that could estimate an assay effect
+with the laboratory fixed covers 1 CDK2 publication and 2 MAO-B publications. The residual is
+therefore "publication identity **and** its measurement protocol", jointly and inseparably.
+
+**The matched comparison, and where the targets disagree.** Holding both the aggregation unit and
+the publication set fixed — scoring each publication's own molecules in both arms, paired across
+the publications both arms can score — the penalty is small and **its sign differs between
+targets**: CDK2 −0.043 to −0.093 (3 of 6 models' intervals exclude zero), MAO-B **+0.009 to
++0.060** (3 of 6 exclude zero, favouring the held-out arm). TG2's 10 publications give intervals
+spanning ±0.2 and settle nothing. So "holding out a publication reduces performance" is not
+supported as a general claim once the aggregation unit is matched.
+
+**Limitations of the standardisation.** Three, and they bound what the novelty number means.
+(i) It is an adjustment for measured similarity, not an identified causal effect; molecules are not
+randomised to arms and novelty may proxy for other differences. (ii) Band standardisation removes
+only *between*-band novelty, so it is a lower bound on the novelty association; a continuous
+adjustment gives 13–80% depending on model and target, with no tighter conclusion. (iii) It
+requires common support, and TG2 does not have it: its arms are nearly disjoint in novelty (7
+scaffold-arm molecules below 0.4 Tanimoto against 283 in the publication arm), the smallest shared
+band holds 7 molecules against 63 for CDK2 and 207 for MAO-B, and the resulting estimates range
+from −992% to +51% with bootstrap intervals spanning several hundred percent. **The decomposition
+is not estimable on TG2.** Note the direction, though: TG2 has the *largest* novelty shift of the
+three (mean −0.33 against −0.24 and −0.14), so the evidence is consistent with novelty driving its
+decline too — it simply cannot be quantified there, and we claim neither way.
+
+**What §5.9 and the abstract should have said.** Not "publication-level confounding reproduces
+most strongly", but: *publication-held-out evaluation consistently reports lower performance than
+scaffold evaluation, and most of that difference is attributable to two measurable things — the
+unit the metric is averaged over, and the novelty of the molecules a publication split puts in the
+test set — with any remainder confounded between publication identity and assay protocol.* The
+practical recommendation is unchanged and arguably strengthened: a publication-held-out split is
+worth running because it generates a realistic novelty distribution automatically, which a
+scaffold split does not.
 
 ---
 
@@ -1069,7 +1145,9 @@ question answered honestly instead of a larger one answered badly. We state in a
 CDK2 (§5.9) and all three reproduced. MAO-B has since been added as a third target and agrees
 with CDK2 on the ordering. What remains is a target from a *different data source*: all three are
 ChEMBL records shaped by one curation pipeline, so a dataset curated elsewhere would test whether
-publication confounding is a property of the literature or partly of ChEMBL's document attribution.
+the publication-held-out decline is a property of the literature or partly of ChEMBL's document
+attribution. It would also be the only way to separate publication identity from assay protocol,
+which ChEMBL's one-assay-per-paper structure makes impossible here (§5.14).
 And the
 nondeterminism check has still been run only once, on one GPU and one model family — the cheapest
 way to generalise it is to repeat the identical-configuration comparison on any other quantized
