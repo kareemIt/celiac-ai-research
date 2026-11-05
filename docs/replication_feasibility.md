@@ -52,10 +52,26 @@ nothing to do with compute:
   is undefined on them. Discarding them does not merely cost data; it selects *which* chemistry gets
   tested, keeping the publications with mixed outcomes and dropping the focused medicinal-chemistry
   series. The grouped protocol has no single-class folds on either target.
-- **Its folds overlap, so its intervals are wrong.** Each molecule appears in several
+- ~~**Its folds overlap, so its intervals are wrong.** Each molecule appears in several
   leave-one-out folds (1.6x on CDK2, 1.4x on MAO-B), which is the pooling artefact
   [`second_target.md`](second_target.md) measured narrowing bootstrap intervals by 15–18%. Grouped
-  K-fold tests every molecule exactly once with no overlap, so the artefact cannot arise.
+  K-fold tests every molecule exactly once with no overlap, so the artefact cannot arise.~~
+
+  > **Withdrawn (2026-11-05).** This was wrong. Under first-publication attribution a molecule
+  > belongs to exactly one publication, so leave-one-publication-out tests it exactly once too:
+  > measured at **mean 1.00, max 1 on all three targets**. The arm that does overlap is the
+  > seeded **scaffold** arm, where repeated seeds test a molecule up to five times, and that is
+  > what narrowed the intervals in [`second_target.md`](second_target.md). The first bullet --
+  > single-class folds and the chemistry selection they cause -- is the real argument for grouped
+  > K-fold, and it stands.
+
+- **What the two protocols actually disagree about is the aggregation unit, not the model.**
+  `scripts/analyse_protocol_gap.py` finds CDK2's 0.169 macro-AUROC gap is entirely this: pooled
+  molecule-level AUROC is the same under both (random forest 0.806 leave-one-out against 0.802
+  grouped), and re-aggregating the grouped arm's own predictions by publication reproduces the
+  leave-one-out numbers. Leave-one-out's macro average is unavoidably a mean of
+  within-publication AUROCs; grouped K-fold's is over mixed folds. Both are legitimate, they
+  answer different questions, and they must not be compared with each other.
 
 **Recommendation: grouped publication K-fold, K = 10**, with whole publications dealt to folds
 largest-first by size and never by label. It holds out 201–512 molecules and 19–21 publications per

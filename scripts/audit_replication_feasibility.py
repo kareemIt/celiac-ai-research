@@ -88,9 +88,17 @@ def deal_papers(sub, k, seed=0):
 def grouped_folds(sub, k, seed=0):
     """K folds, each holding out a disjoint block of whole publications.
 
-    Every molecule is tested exactly once and no two folds share a test molecule, so unlike
-    leave-one-publication-out there is no fold overlap to narrow a bootstrap interval -- the
-    pooling artefact of docs/second_target.md cannot arise.
+    Every molecule is tested exactly once and no two folds share a test molecule, so the pooling
+    artefact of docs/second_target.md cannot arise.
+
+    Correction (2026-11-05): this docstring previously said "unlike leave-one-publication-out",
+    implying that protocol overlaps. It does not. Under first-publication attribution a molecule
+    belongs to exactly one publication, so leave-one-out also tests it exactly once -- measured at
+    mean 1.00, max 1 on all three targets. The arm that really does overlap is the seeded scaffold
+    arm, where repeated seeds test a molecule up to five times, and that is what narrowed the
+    intervals in docs/second_target.md. The reasons to prefer grouped K-fold over
+    leave-one-publication-out are its lack of single-class folds and of chemistry selection, not
+    fold overlap.
     """
     fold = deal_papers(sub, k, seed)
     for f in range(k):
