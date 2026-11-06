@@ -6,7 +6,8 @@ each is named beside it. Nothing in this document is a projection.
 Reproduce the analyses: `python scripts/analyse_sota.py --target {tg2,cdk2,maob} --split <split>`,
 `scripts/analyse_split_penalty.py`, `scripts/analyse_three_targets.py`,
 `scripts/analyse_protocol_gap.py`, `scripts/validate_novelty_share.py`,
-`scripts/analyse_confounders.py`, `scripts/audit_assay_confound.py`.
+`scripts/analyse_confounders.py`, `scripts/audit_assay_confound.py`,
+`scripts/analyse_lopo_conformal.py --target {tg2,cdk2,maob}`.
 
 ## 0. The protocols are not the same, and that matters more than expected
 
@@ -306,7 +307,9 @@ uninformative.
 
 - Whether the publication-held-out decline, once aggregation and novelty are accounted for, is
   anything at all. CDK2 says −0.07, MAO-B says +0.04, both with half their models' intervals
-  excluding zero. This is the central open question.
+  excluding zero. This is the central open question. The conformal arm reaches the same
+  disagreement independently (§6, selective prediction), which makes it less likely to be an
+  artefact of the matched comparison and no more explained.
 - Whether novelty explains the TG2 decline. Not estimable there for lack of common support, and
   the direction of its novelty shift is the largest of the three.
 - Whether CheMeleon's publication-arm advantage is pretraining or the D-MPNN architecture.
@@ -315,3 +318,85 @@ uninformative.
   handicaps the control. Unresolved on the targets where it could be answered fairly.
 - Whether any of this generalizes past ChEMBL. All three targets come from one curation pipeline,
   and ChEMBL's one-assay-per-paper structure is what makes publication and assay inseparable.
+
+## 9. The five findings that survive, ranked by how well they are supported
+
+Ranked by evidential strength, not by how interesting they are.
+
+**1. Publication-wise conformal calibration restores marginal coverage; i.i.d. calibration fails.**
+Three targets, two protocols, same direction, large effects: +0.113 [+0.078, +0.148] on TG2,
++0.084 [+0.065, +0.102] on CDK2, +0.090 [+0.079, +0.102] on MAO-B, all p < 1e-7 paired per fold
+and model, sign test agreeing. The i.i.d. regime degenerates into empty prediction sets at
+alpha=0.2 (up to 44.7% of CDK2 molecules). **Verified.** This is the most robust result in the
+project and the one actionable recommendation it supports.
+
+**2. The headline publication-held-out "collapse" is mostly a metric-aggregation artefact.**
+On CDK2 both publication protocols test every molecule exactly once, so pooled molecule-level
+AUROC is exactly comparable: random forest 0.806 under leave-one-out against 0.802 under grouped
+K-fold, while the publication-level macro AUROCs differ by 0.169. Re-aggregating the *grouped*
+arm's own predictions by publication reproduces the leave-one-out numbers (0.633/0.604/0.628
+against 0.629/0.617/0.629). Training size works against the direction of the artefact and
+single-class exclusion contributes ~0.00. **Verified, and it is a correction to our own earlier
+claim** (`paper.md` §5.14).
+
+**3. Most of the remaining decline tracks chemical novelty, not publication identity.**
+Direct standardisation to shared max-Tanimoto bands removes the majority of the penalty on both
+replication targets: share 0.60-0.80 on CDK2 and 0.48-0.71 on MAO-B across six models. **This is
+an association with wide intervals, not a decomposition** — cluster-bootstrapped over
+publications, CDK2 random forest reads 78% [33%, 98%] and the residual is −0.022 [−0.091, +0.038].
+The residual crosses zero for every model on both targets. Robust to band definition (47-98% and
+36-81% across five band sets). **Not estimable on TG2** for lack of common support, which is
+itself a finding: TG2 has the largest novelty shift of the three and the least ability to
+condition on it.
+
+**4. Assay effects cannot be separated from publication identity in ChEMBL.**
+0 of 380 CDK2 assays and 0 of 516 MAO-B assays span more than one publication. Assay-held-out and
+publication-held-out are the same experiment. **Verified, and it kills a control we had planned.**
+Any residual effect after novelty and aggregation is confounded between "who published it" and
+"how it was measured", and no analysis of this data can split them.
+
+**5. Under matched aggregation and matched publications, the two targets disagree — robustly.**
+Same aggregation unit, same publications, identical molecule sets, publication-clustered
+bootstrap: CDK2 −0.034 to −0.110 and MAO-B +0.007 to +0.062. XGBoost is significant in **both**
+directions (−0.110 [−0.203, −0.023] and +0.062 [+0.019, +0.104]). Conformal selective prediction
+reaches the same split by an independent route: discarding the least confident 80% of molecules
+cuts decision error 3.6-fold on MAO-B and 1.4-fold on CDK2. **Verified as a disagreement; the
+cause is not established.** It refutes a single universal "publication penalty".
+
+### What does not make the list
+
+- **CheMeleon's publication-arm advantage.** It beats random forest on the publication arm of all
+  three targets (+0.023, +0.023, +0.033; pooled +0.031 [+0.007, +0.055], Q=0.09 df=2, homogeneous)
+  and is null on the scaffold arm. But p_holm = 0.057 **misses correction**, and the finding is
+  about CheMeleon specifically, not pretrained models as a class — frozen ChemBERTa-2 pools
+  *negative* on the publication arm (−0.020). **Exploratory.**
+- **Penalty magnitude predicting model rank.** Refuted out-of-sample on MAO-B (Spearman 0.543,
+  p=0.27), exactly as pre-registered.
+
+## 10. Is this ready for a paper?
+
+**The methodological core is. The causal story is not, and should not be attempted on this data.**
+
+Findings 1, 2 and 4 are publishable as they stand, and together they make a coherent
+methodological contribution: publication-held-out evaluation is widely reported as a severity
+result, and we show that the headline number is dominated by the choice of aggregation unit, that
+the residual is substantially chemical novelty, and that the one remaining attribution is
+structurally unidentifiable in the standard data source. Finding 2 is a correction to our own
+published claim, which strengthens rather than weakens the paper if presented as such.
+
+What the paper must **not** claim is that publication identity causes the residual decline. The
+novelty share has intervals from roughly 30% to 95%, the residual crosses zero everywhere, and
+assay is perfectly confounded. The honest framing is an accounting of what the penalty is *not*,
+plus a positive recommendation on calibration.
+
+**The minimum additional work before submission** — in priority order:
+
+1. **Nothing new is required for findings 1-4.** They are measured, tested and reproducible.
+2. **A third protocol-matched target would settle finding 5**, which currently rests on an n=2
+   disagreement. This is the one experiment with real scientific return.
+3. **Chemprop on CDK2 and MAO-B** would separate pretraining from architecture for the CheMeleon
+   result. Worth doing only if CheMeleon is to be a *claim*; as an exploratory observation it does
+   not need it. TG2's existing control is handicapped (a from-scratch D-MPNN on 359 training
+   molecules), so the question can only be answered fairly on the replication targets.
+4. **Nothing can fix the assay confound** within ChEMBL. It is a limitation to state, not a gap to
+   close.
