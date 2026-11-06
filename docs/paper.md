@@ -65,8 +65,13 @@ calibrating on held-out publications brings measured coverage back to target (0.
 p = 2.5 × 10⁻⁸). **This is the one result that replicates cleanly on all three targets**
 (Δ +0.084 on CDK2, +0.090 on MAO-B, every p < 10⁻⁷), and it is also the one we are most careful
 about: grouped calibration does **not** restore exchangeability and carries no distribution-free
-guarantee under publication shift, so we report it as an empirical regularity and cite the
-hierarchical conformal methods that do have a theorem for an unseen group [21, 22]. Its practical
+guarantee under publication shift, so we report it as an empirical regularity. **We then run the
+method that does have a theorem for a test point from an unseen group** — split hierarchical
+conformal prediction [21, 22] — on the same saved predictions: it holds its nominal floor in all 54
+runs where ours holds it in 22, the advantage shrinks with the number of calibration publications at
+exactly the rate its own upper bound predicts, and it pays for the floor by roughly halving the
+molecules given a decisive answer. Leave-one-publication-out cannot support it at all, needing nine
+unseen calibration publications where that protocol supplies one. Its practical
 value is limited in the same way on every target: it commits on only 15–32% (TG2), 41–48% (CDK2)
 and 46–56% (MAO-B) of molecules and errs on 16–39% of those, so marginal coverage is restored and
 decision quality is not. The fifth failure is thus a
@@ -953,7 +958,14 @@ test distribution — calibration molecules are also scored by a model that neve
 publication — which shrinks the coverage gap in the sense of Barber et al. [23] without closing it.
 We therefore report coverage as **measured on three targets** and claim no distribution-free
 guarantee under publication shift. The honest summary is that the fix is empirical, reproducible,
-and theoretically unjustified as stated; §9 names the experiment that would settle it.
+and theoretically unjustified as stated.
+
+**§5.16 settles what that costs.** We have since run the published method that does carry a theorem
+for a test point from an unseen group, on these same saved predictions. It holds its nominal floor
+in all 54 runs where ours holds it in 22, and the gap between the two is governed by the number of
+calibration publications exactly as the theory predicts. Our method is a good approximation when
+that number is large — which is the regime this section was run in, and why its numbers look
+correct — and has no safety margin when it is small.
 
 **Marginal coverage and a usable answer are different things, and only the first one works.**
 A prediction set containing both labels is covered and says nothing; the quantity a screening
@@ -1143,6 +1155,140 @@ finding with a mechanism. It is the single strongest argument in this paper agai
 these penalties as a transferable constant, and the main reason §10 recommends reporting the split
 rather than a correction factor derived from it. Resolving it needs more targets, which is the one
 additional experiment §9 identifies as scientifically load-bearing.
+
+---
+
+### 5.16 Hierarchical conformal prediction holds its floor where our method does not — *demonstrated*
+
+Added 2026-11-05 (`scripts/run_hcp.py`, `scripts/analyse_hcp.py`, `tests/test_hcp.py`). §5.13
+reported an empirical fix with no theorem behind it. This section runs the published method that
+does have one, on the same saved predictions, with no model refitted.
+
+**The algorithm.** Split hierarchical conformal prediction (HCP), Theorem 1 of Lee, Barber and
+Willett [22], which builds on the three constructions of Dunn, Wasserman and Ramdas [21]. Given
+K₁ calibration groups with sizes N_k, the threshold T is the (1 − α)-quantile of the distribution
+placing mass 1/((K₁+1)·N_k) on each calibration score and 1/(K₁+1) on +∞, and the set is
+{y : s(x, y) ≤ T}. The guarantee is P{Y ∈ Ĉ(X)} ≥ 1 − α, with an upper bound of
+1 − α + 2/(K₁+1) when scores are a.s. distinct.
+
+**What it is a guarantee *about*, which is the substantive point.** The probability is marginal over
+the draw of the calibration groups *and* of a fresh test group with an observation inside it. In
+our terms the event is "a randomly chosen **publication**, then a randomly chosen molecule from
+it". Ordinary split conformal — and therefore §5.13's method — targets "a randomly chosen
+**molecule**", under which a 224-molecule paper counts 22 times a 10-molecule one. The two targets
+coincide only if every publication is the same size, and ours run 10 to 224. Each publication
+carrying total mass 1/(K₁+1) regardless of size is exactly how HCP tolerates that; with all
+N_k = 1 it reduces to standard split conformal.
+
+**Do our data satisfy the assumptions?** Hierarchical exchangeability asks that groups be
+exchangeable with one another and observations exchangeable within a group given its size.
+Within-publication exchangeability is reasonable and, importantly, does not require independence —
+a congeneric series in one assay is the dependent-within-group case the theorem is built for.
+Across publications it is *not* true of the corpus: publications are ordered in time and later
+series build on earlier ones. But Theorem 1 does not need the corpus to be exchangeable, only the
+calibration and test groups, and our grouped K-fold assigns publications to folds at random. So we
+run two designs and are explicit about which carries the theorem:
+
+| design | construction | theorem applies? |
+|---|---|---|
+| **within-fold** | calibration and test publications are both drawn from one fold's held-out block, all unseen by that fold's model | **yes** — Theorem 1 as stated |
+| cross-fold | calibration publications come from other folds, scored by their own fold's model | **no** — cross-conformal, and the scoring model for a calibration publication was fitted on data including the test publication |
+
+The within-fold design needs K₁ ≥ ⌈1/α⌉ − 1 calibration publications or the quantile lands on the
+infinite atom. That makes it **feasible on MAO-B at both α (17–22 publications per fold), feasible
+on CDK2 only at α = 0.2 (6–9 per fold), and infeasible on TG2 at any α** — leave-one-publication-out
+leaves exactly one unseen publication per fold, so TG2 can only be run cross-fold. We report this
+rather than work around it: the protocol that produced our headline result cannot support the
+method that would justify it.
+
+**Implementation verified against the theorem before any result was read.** `tests/test_hcp.py`
+(15 tests) builds synthetic worlds where hierarchical exchangeability holds by construction — group
+means drawn i.i.d., members drawn i.i.d. within a group — and confirms over 3,000 trials that
+coverage sits at or above the floor, including with group sizes 2 to 200. It also confirms that
+the molecule-weighted quantile *under-covers* in the same world when one group dominates, that HCP
+reduces to split conformal at N_k = 1, and that too few groups yield ∞ rather than a silently
+invalid threshold. One real bug surfaced this way: at the smallest feasible K₁ the finite mass
+equals 1 − α exactly, and floating-point summation fell a few ulps short, turning the smallest
+usable calibration set into a trivial predictor.
+
+#### The comparison
+
+Random forest, random selection of calibration publications, publication-clustered intervals.
+
+| target | design | K₁ | α | i.i.d.-pooled | publication-grouped (ours) | HCP |
+|---|---|---|---|---|---|---|
+| MAO-B | within | 13 | 0.10 | 0.869 | **0.841** [0.788, 0.897] | **0.948** [0.912, 0.982] |
+| MAO-B | within | 14 | 0.20 | 0.771 | **0.765** [0.698, 0.821] | **0.845** [0.799, 0.888] |
+| CDK2 | within | 6 | 0.20 | 0.800 | **0.769** [0.661, 0.867] | **0.908** [0.827, 0.955] |
+| MAO-B | cross | 187 | 0.10 | 0.900 | 0.901 [0.876, 0.923] | 0.911 [0.888, 0.933] |
+| CDK2 | cross | 74 | 0.10 | 0.902 | 0.899 [0.860, 0.938] | 0.914 [0.873, 0.947] |
+| TG2 | cross | 10 | 0.10 | 0.910 | 0.890 [0.778, 0.960] | 0.982 [0.935, 0.998] |
+
+**HCP holds its nominal floor in 54 of 54 runs across both designs, all six entrants and both α.
+Our publication-grouped method holds it in 22 of 54**, and in the theorem-faithful within-fold
+design it holds in only 5 of 18, with 2 runs whose entire interval lies below target. Paired on
+publication with a cluster bootstrap, HCP − ours is positive in **all 54** model-by-target-by-α
+comparisons, and the interval excludes zero in 52 of them; the two exceptions are XGBoost on CDK2
+cross-fold at α = 0.2 (+0.002 [−0.001, +0.006]) and fine-tuned ChemBERTa-2 on TG2 cross-fold at
+α = 0.1 (+0.134 [+0.000, +0.301]). The six entrants share folds and molecules, so these are 54
+valid per-model statements, not 54 independent observations.
+
+**The size of the advantage is governed by K₁, exactly as the theorem says it should be.** Sweeping
+the calibration budget on MAO-B:
+
+| K₁ | ours | HCP | HCP excess over 0.90 | 2/(K₁+1) |
+|---|---|---|---|---|
+| 9 | 0.852 | 0.995 | +0.095 | 0.200 |
+| 13 | 0.871 | 0.966 | +0.066 | 0.143 |
+| 25 | 0.892 | 0.940 | +0.040 | 0.077 |
+| 50 | 0.895 | 0.930 | +0.030 | 0.039 |
+| 100 | 0.899 | 0.916 | +0.016 | 0.020 |
+| 187 | 0.901 | 0.911 | +0.011 | 0.011 |
+
+HCP's conservatism decays at the rate its own upper bound predicts and converges onto it; in the
+within-fold design, where the theorem applies, no run's interval lies above the bound. Our method
+climbs from 0.852 to 0.901 over the same sweep: **it reaches nominal coverage only when the
+calibration set spans many publications, and has no safety margin when it does not.** That both
+explains and bounds §5.13 — its calibration sets were large, which is why its coverage looked
+correct, and nothing about the construction guaranteed it would.
+
+**What HCP costs.** Decisiveness, and a lot of it where K₁ is small. At α = 0.1 on MAO-B within-fold
+the singleton fraction falls from 0.615 (ours) to 0.308 (HCP), i.e. **HCP halves the molecules given
+a definite answer** to buy its floor. Its singletons are more reliable in exchange (error 0.258 →
+0.169). At K₁ = 187 the trade almost vanishes (0.560 → 0.529). On TG2 cross-fold, where K₁ = 10, the
+singleton fraction collapses to 0.077 — HCP commits on one molecule in thirteen. So the guarantee is
+affordable on a large, publication-rich dataset and close to useless on a small one.
+
+**Conditional coverage is still not fixed, by either method.** In the MAO-B within-fold design
+12.8% of publications fall below target under HCP against 43.6% under ours — much better, and still
+not a per-publication guarantee, which neither method claims. The worst publication covers 0.474
+under HCP and 0.133 under ours; on MAO-B cross-fold the worst covers 0.000 under *both*. Across
+novelty bands HCP is uniformly higher but the shape is unchanged. Marginal coverage over
+publications is what Theorem 1 delivers, and per-publication reliability remains out of reach.
+
+**Sensitivity to how calibration publications are chosen.** Under the three selection rules
+(random, smallest-first as in our production code, largest-first) HCP's coverage spans 0.948–0.966
+and never drops below target, while ours spans 0.841–0.918 and falls below it under random
+selection. Changing the rule also changes which publications are *test*, so these rows do not share
+an evaluation set and only each method's spread is comparable; the finding is that HCP is
+insensitive to the choice and ours is not. Notably our production smallest-first bias (§8) reads
+*better* here (0.895) than random selection (0.841), because taking the small publications for
+calibration leaves the large ones as test and coverage is molecule-weighted — a second illustration
+that the molecule-weighted target is the one sensitive to group sizes.
+
+**One arm could not be reconstructed.** §5.13's i.i.d. regime calibrates on random molecules from
+the *training* publications, which requires nonconformity scores for molecules the model was fitted
+on; only out-of-fold predictions were saved. The "i.i.d.-pooled" column above is therefore a
+different and milder thing — molecule-pooled calibration with a quarter of each test publication
+mixed in — and it behaves accordingly, landing near our grouped method rather than failing as
+§5.13's i.i.d. arm does. §5.13's measurement of that arm stands on its own run; this section
+compares the two group-aware methods, which is what it was built to do.
+
+**Status: demonstrated, with its scope stated.** HCP is the method with the guarantee and it
+empirically honours it on every run we could construct. It does not solve distribution shift: it
+widens prediction sets until the stated error rate is met, and under publication shift that means
+refusing to commit on most molecules. Nothing here makes a prediction on an unseen publication
+reliable enough to act on without experimental confirmation (§7.2).
 
 ---
 
@@ -1372,9 +1518,22 @@ sets this out: a calibration molecule from one publication and a test molecule f
 exchangeable, our grouped scheme is plain split conformal rather than a hierarchical conformal
 estimator [21, 22], and `group_calibration` selects publications smallest-first, so the calibration
 groups average roughly half the size of the group being predicted (11.9 molecules against about 26
-on the replication targets). Group-level exchangeability is thus violated by construction. The
-coverage numbers are measured on three targets and reproducible; the theory entitles us to none of
-them, and an experiment that would settle it is in §9.
+on the replication targets). Group-level exchangeability is thus violated by construction. §5.16
+measures the consequence rather than leaving it hypothetical: our method misses its nominal floor in
+32 of 54 runs, and in the theorem-faithful design in 13 of 18.
+
+**The guaranteed alternative is feasible only on some protocols, and buys its floor with
+abstention.** §5.16's HCP arm needs K₁ ≥ ⌈1/α⌉ − 1 calibration publications, which TG2's
+leave-one-publication-out protocol cannot supply at any α and CDK2's folds cannot supply at
+α = 0.1. Where it is feasible it halves the singleton fraction at small K₁. So the choice between
+the two methods is a real trade, not a strict improvement, and §10.2's recommendation states the
+condition rather than naming one method unconditionally.
+
+**Only two of the three calibration regimes could be reconstructed without refitting.** §5.13's
+i.i.d. arm calibrates on random molecules from the training publications, which needs nonconformity
+scores for molecules the model was fitted on; only out-of-fold predictions were saved. §5.16's
+"i.i.d.-pooled" column is therefore a milder surrogate and should not be read as a re-measurement
+of §5.13's i.i.d. failure.
 
 **The novelty share is an association, not a decomposition.** §5.14's 48–80% is a standardisation
 over measured similarity bands, not an identified causal effect: molecules are not randomised to
@@ -1445,18 +1604,18 @@ repurposing is exhausted (§5.6), but analogs within 0.5–0.7 Tanimoto of known
 validated applicability domain. Covalent fragment collections would require the mechanism modelling
 that §5.8 found infeasible, so they should follow the kinetic-unit recovery rather than precede it.
 
-**Compare against hierarchical conformal prediction, which has the theorem we lack.** This is the
-one experiment that would convert §5.13's strongest result from an empirical regularity into a
-supported method claim. Our grouped calibration brings measured coverage back to target on three
-targets but carries no distribution-free guarantee, and violates group exchangeability by selecting
-calibration publications smallest-first (§5.13, §8). Hierarchical conformal prediction [21, 22] is
-built for exactly this sampling structure and does guarantee coverage for an observation from an
-unseen group under hierarchical exchangeability. Running HCP and clustered conformal prediction [26]
-on the same folds would establish whether the guaranteed method matches our empirical one on
-coverage, what it costs in set size — the quantile-of-quantiles constructions are known to be
-conservative — and whether a size-stratified or randomly-chosen calibration grouping closes the
-exchangeability gap we created. It needs no new model fits, only re-calibration of predictions we
-have already saved, and it is the cheapest high-value experiment left in the project.
+**Compare against hierarchical conformal prediction — done, §5.16.** This was the one experiment
+that would convert §5.13's strongest result from an empirical regularity into a supported method
+claim, and it has now been run on the saved predictions with no model refitted. HCP holds its floor
+in all 54 runs against 22 for our method, at the cost of roughly halving the decisive answers where
+calibration publications are few. Two things it leaves open. First, **the leave-one-publication-out
+protocol cannot support it at all** — one unseen publication per fold against the K₁ ≥ 9 that
+α = 0.1 needs — so a TG2-style protocol must either be re-run as grouped K-fold or accept that no
+guaranteed calibration is available to it. Second, we implemented the split construction of
+Theorem 1 only; the repeated-subsampling and CDF-pooling variants [21, 22] and clustered conformal
+prediction [26] trade conservatism against assumptions differently, and a comparison among them
+would say whether HCP's set sizes can be reduced without giving up the floor. That is a
+methods-paper question rather than a blocker for this one.
 
 **Mondrian conformal prediction** stratified by scaffold cluster, to give per-chemotype rather than
 marginal coverage [6, 24]. Partly done, and the motivation has changed: §5.13 runs the class-wise
@@ -1521,7 +1680,10 @@ no distribution-free guarantee claimed); **most of CDK2's publication-held-out m
 aggregation unit**, since re-aggregating the grouped arm's own predictions by publication closes
 about 92% of a 0.169 gap (§5.14); **no assay spans two publications** in either replication dataset
 (0 of 380, 0 of 516), so publication identity and assay protocol are not separately identifiable
-(§5.14); **TG2 and FXIII-A potency correlate positively** (r = +0.41) yet
+(§5.14); **split hierarchical conformal prediction holds its nominal coverage floor in all 54 runs
+where our publication-grouped calibration holds it in 22**, with the advantage decaying in the
+number of calibration publications as its own 2/(K₁+1) bound predicts, and costing roughly half the
+decisive answers at small K₁ (§5.16); **TG2 and FXIII-A potency correlate positively** (r = +0.41) yet
 the top potency decile still passes a 10-fold selectivity gate at 46.7% against 13.6% (odds ratio
 8.0, p = 0.001, §5.7).
 
@@ -1577,8 +1739,19 @@ as an unexplained constraint rather than averaging it away.
 
 If one result here is worth carrying forward, it is not a penalty magnitude but the finding that
 **i.i.d. conformal calibration under-covers badly whenever whole publications are held out, and
-grouped calibration empirically does not** — three targets, two protocols, every p < 10⁻⁷. We offer
-it as a reporting recommendation with an explicit theoretical gap attached, not as a method.
+group-aware calibration does not** — three targets, two protocols, every p < 10⁻⁷ — together with
+§5.16's demonstration that the group-aware method with a theorem behind it honours its floor where
+our empirical one misses it in 32 of 54 runs.
+
+**Which method we recommend reporting.** Split hierarchical conformal prediction [22] is the
+strongest baseline and should be the primary report wherever the protocol can supply
+⌈1/α⌉ − 1 calibration publications — grouped publication K-fold on a few hundred papers does, and
+we recommend that protocol partly for this reason. Where it cannot, which includes any
+leave-one-publication-out design and any dataset with few papers, there is no guaranteed option and
+publication-grouped pooled calibration is the best available approximation, to be reported with
+its measured coverage and without a guarantee. In both cases the singleton fraction and the error
+among singletons must be reported next to coverage, because every method here achieves its coverage
+largely by declining to answer.
 
 The practical recommendation is modest and specific: alongside the scaffold split that is already
 standard, small-dataset bioactivity studies should report (i) the independent unit behind every
@@ -1593,19 +1766,25 @@ statistical audit. It is **not** submission-ready. The blocking items are record
 [`audit_2026-11-05.md`](audit_2026-11-05.md) and summarised here:
 
 *Verified.* Every headline number is recomputed from a committed result table by
-`scripts/check_paper.py` (98 values, all passing); for sections written after the replication
+`scripts/check_paper.py` (113 values, all passing); for sections written after the replication
 campaign the check is anchored to the section that must carry the number. The statistical unit is
 stated per regime in §4.5, and publication-clustered intervals are used wherever the molecule is not
-independent. Nine corrections are logged in the audit record, two of which changed numbers in this
-paper (§5.14's matched comparison, and TG2's matched molecule count 394 → 428).
+independent. Ten corrections are logged in the audit record, two of which changed numbers in this
+paper (§5.14's matched comparison, and TG2's matched molecule count 394 → 428). §5.16's
+implementation is checked against its own theorem by 15 synthetic-data tests before any result
+from it was read.
 
-*Outstanding and substantive.* (i) §5.13's coverage result has no formal guarantee and the
-comparison against hierarchical conformal prediction [21, 22] that would supply one has not been
-run; it needs no new model fits (§9). (ii) The CDK2/MAO-B sign disagreement (§5.15) is unexplained
-and cannot be resolved with two replication targets. (iii) References 24 and 25 are unverified
-against publisher records. (iv) Chemprop on the replication targets is the control that would
-separate pretraining from architecture for the CheMeleon observation, which is why that observation
-is reported as exploratory rather than as a finding.
+*Outstanding and substantive.* (i) **Resolved since the last revision**: §5.16 runs hierarchical
+conformal prediction against our method on the saved predictions, so the headline calibration result
+now has a guaranteed comparator and an explicit recommendation (§10.2). (ii) The CDK2/MAO-B sign
+disagreement (§5.15) is unexplained and cannot be resolved with two replication targets. (iii)
+References 24 and 25 are unverified against publisher records — **now the top blocking item**.
+(iv) Chemprop on the replication targets is the control that would separate pretraining from
+architecture for the CheMeleon observation, which is why that observation is reported as
+exploratory rather than as a finding. (v) Only the split construction of Theorem 1 is implemented;
+the repeated-subsampling and CDF-pooling variants and clustered conformal prediction are not
+compared, which bounds how strongly §5.16 can be read as "HCP is the best group-aware method"
+rather than "HCP holds its floor and ours does not".
 
 *Outstanding and editorial.* No target venue has been selected, and formatting, length limits,
 author/affiliation details, data-availability and competing-interests statements, and any

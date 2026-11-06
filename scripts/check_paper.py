@@ -160,6 +160,31 @@ def claims():
               & (c.mondrian == mondrian)]
         return (c.coverage * c.n_test).sum() / c.n_test.sum()
 
+    # --- 5.16: the three-method conformal comparison -------------------------------------
+    if os.path.exists("results/hcp_comparison.csv"):
+        h = pd.read_csv("results/hcp_comparison.csv")
+        h["tc"] = 1 - h.alpha
+        for m, lbl in (("hcp", "HCP"), ("grouped_pooled", "ours")):
+            d = h[h.method == m]
+            out.append((f"{lbl} runs holding the coverage floor",
+                        int((d.coverage >= d.tc).sum()), 0, "5.16"))
+        w = h[(h.design == "within") & (h.method == "grouped_pooled")]
+        out.append(("ours within-design runs holding the floor",
+                    int((w.coverage >= w.tc).sum()), 0, "5.16"))
+        # the headline row of the comparison table: MAO-B within-fold, random forest, alpha=0.1
+        for m, lbl in (("grouped_pooled", "ours"), ("hcp", "HCP")):
+            r = h[(h.target == "maob") & (h.design == "within") & (h.alpha == 0.1)
+                  & (h.model == "rf") & (h.method == m)].iloc[0]
+            out.append((f"MAO-B within rf a=0.1 {lbl} coverage", r.coverage, 3, "5.16"))
+            out.append((f"MAO-B within rf a=0.1 {lbl} singleton", r.singleton_frac, 3, "5.16"))
+        pr = pd.read_csv("results/hcp_paired.csv")
+        out.append(("paired comparisons", len(pr), 0, "5.16"))
+        out.append(("paired comparisons excluding zero", int((pr.ci_lo > 0).sum()), 0, "5.16"))
+        sw = pd.read_csv("results/hcp_k1_sweep.csv")
+        hs = sw[sw.method.str.startswith("HCP")].sort_values("K1")
+        for _, r in hs.iterrows():
+            out.append((f"K1={int(r.K1)} HCP coverage", r.coverage, 3, "5.16"))
+
     conf = {"TG2": "results/lopo_conformal_summary.csv",
             "CDK2": "results/conformal_cdk2_paper_grouped_summary.csv",
             "MAO-B": "results/conformal_maob_paper_grouped_summary.csv"}
