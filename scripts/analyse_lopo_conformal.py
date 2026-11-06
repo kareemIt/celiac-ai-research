@@ -132,7 +132,11 @@ def main(target="tg2", split=SPLIT):
           "\n   0.5 threshold, so this is decision error, not AUROC.")
 
     print("\n## 6. Are the two headline differences significant?\n")
-    print("   Paired per fold over the 11 publications. Folds hold 10 to 106 molecules, so the"
+    # Measured, not hardcoded: these counts were written for TG2's 11 leave-one-out folds and
+    # silently mislabelled the replication targets, whose grouped folds hold far more molecules.
+    sizes = conf.groupby("fold")["n_test"].first()
+    print(f"   Paired per fold over the {len(sizes)} folds. Folds hold {sizes.min()} to "
+          f"{sizes.max()} molecules, so the"
           "\n   sign test is reported alongside: it ignores fold size entirely.\n")
     for alpha in alphas:
         w = conf[(conf.alpha == alpha) & (~conf.mondrian)]

@@ -1,0 +1,8 @@
+section,alpha,n_pairs,mean_delta_coverage,ttest_p,sign_p,n_higher,metric,mean_delta,n_rf_worse
+group_vs_iid,0.1,60,0.08357817937588985,1.5902825103644164e-12,1.0382663478969434e-11,55.0,,,
+group_vs_iid,0.2,60,0.22080166665516612,2.3535932900184337e-16,9.084503982403902e-13,56.0,,,
+rf_vs_chemberta_frozen,,10,,0.9590612664243039,0.109375,,error_at_100pct_coverage,0.0015479468124012408,2.0
+rf_vs_chemberta_frozen,,10,,0.43408320275408624,0.34375,,error_at_80pct_coverage,0.02591426689252776,3.0
+rf_vs_chemberta_frozen,,10,,0.6025215087193739,0.34375,,error_at_60pct_coverage,0.021199003017184824,3.0
+rf_vs_chemberta_frozen,,10,,0.8897653896604183,0.34375,,error_at_40pct_coverage,-0.0065722996515679396,3.0
+rf_vs_chemberta_frozen,,10,,0.7564353469384757,0.75390625,,error_at_20pct_coverage,-0.02421312427409989,4.0

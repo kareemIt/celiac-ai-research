@@ -204,11 +204,91 @@ do not invert, they stop being distinguishable.
 
 ## 6. Conformal uncertainty
 
-Running at the time of writing (`scripts/run_lopo_conformal.py --target {cdk2,maob} --split
-paper_grouped`). TG2's published result stands: publication-wise calibration restores marginal
-coverage (0.784 → 0.914 against a 0.90 target) but answers decisively on 15–32% of molecules and is
-wrong on 25–39% of those, and conditional coverage visibly fails. **This section will be completed
-with measured replication numbers; nothing is claimed for CDK2 or MAO-B yet.**
+Measured on all three targets (`scripts/analyse_lopo_conformal.py --target {tg2,cdk2,maob}`).
+CDK2 and MAO-B ran on `paper_grouped`, 10 folds each, 2,078 and 5,091 molecules per model.
+
+### Publication-wise calibration restores marginal coverage, on every target
+
+The i.i.d. regime draws calibration molecules at random from the training publications; the group
+regime holds out whole training publications. At a 0.90 target, pooled over molecules:
+
+| target | iid coverage | group coverage | paired group - iid | p |
+|---|---|---|---|---|
+| TG2 (`paper_lopo`) | 0.755 | 0.868 | +0.113 [+0.078, +0.148] | 2.5e-08 |
+| CDK2 (`paper_grouped`) | 0.790-0.831 | 0.885-0.905 | +0.084 [+0.065, +0.102] | 1.6e-12 |
+| MAO-B (`paper_grouped`) | 0.806-0.826 | 0.901-0.920 | +0.090 [+0.079, +0.102] | 1.6e-22 |
+
+Ranges are across the six entrants. Pairing is per fold and model, so the interval is over 60
+pairs on the replication targets and 66 on TG2; the sign test agrees (55/60, 60/60, 52/66).
+**This is the single most robust finding in the whole analysis** -- same direction, similar
+magnitude, and significant on three targets under two different publication protocols.
+
+Exchangeability is what breaks, and holding out whole publications at calibration time is enough
+to repair the marginal guarantee. At alpha=0.2 the i.i.d. regime does not merely under-cover, it
+degenerates: it starts emitting *empty* prediction sets for 4.3-44.7% of CDK2 molecules and
+2.1-13.5% of MAO-B molecules, so its nominal 0.80 coverage comes out as low as 0.446. Group
+calibration emits none, on either target, at either alpha.
+
+Mondrian (class-wise) quantiles change little -- at most 0.01 in coverage on either target, in
+either regime. The shift that matters here is in the molecules, not in the class balance.
+
+### Restored coverage is not the same as a useful answer
+
+A prediction set of {inactive, active} is covered and says nothing. At alpha=0.1 under group
+calibration:
+
+| target | singleton fraction | error among singletons |
+|---|---|---|
+| TG2 | 0.15-0.32 | 0.25-0.39 |
+| CDK2 | 0.41-0.48 | 0.22-0.27 |
+| MAO-B | 0.46-0.56 | 0.16-0.18 |
+
+So the replication targets are *less* bad than TG2 on both axes, but the qualitative conclusion
+holds everywhere: roughly half the molecules get a decisive answer and between a sixth and a
+quarter of those answers are wrong. Conformal prediction under a publication shift is honest
+about its own ignorance rather than useful.
+
+### Conditional coverage still fails, in the expected direction
+
+Marginal coverage is restored; coverage *within* a novelty band is not. Random forest at
+alpha=0.1, group calibration, by max Tanimoto to the fitting set:
+
+| band | CDK2 | MAO-B |
+|---|---|---|
+| [0.0, 0.4) | 0.898 (n=1461) | 0.899 (n=1383) |
+| [0.4, 0.5) | 0.874 (n=318) | 0.909 (n=1255) |
+| [0.5, 0.6) | 0.874 (n=111) | 0.894 (n=1202) |
+| [0.6, 0.7) | 0.940 (n=83) | 0.894 (n=700) |
+| [0.7, 1.01) | 0.933 (n=105) | 0.920 (n=551) |
+
+The spread is milder than TG2's but has the same shape: the unfamiliar bands sit at or below
+target and the most familiar band overshoots, and the set sizes do the work -- CDK2 random forest
+averages 1.652 in the lowest band against 1.048 in the highest. ChemBERTa-2 (frozen) is the worst
+conditional offender on both targets (0.876 and 0.872 in the lowest band). A per-molecule
+guarantee is not available from this procedure; only a population-level one is.
+
+### Selective prediction separates the two targets sharply
+
+Error at a 0.5 threshold among the most confident fraction kept (group calibration, random
+forest):
+
+| fraction kept | CDK2 | MAO-B |
+|---|---|---|
+| 100% | 0.309 | 0.279 |
+| 60% | 0.256 | 0.187 |
+| 20% | 0.215 | 0.077 |
+
+On MAO-B, confidence ranking works: discarding the least confident 80% of molecules cuts decision
+error by a factor of 3.6. On CDK2 it barely works at all -- 0.309 to 0.215 over the same range.
+This is the same target asymmetry section 3 found under matched aggregation, arriving by a
+completely independent route, and it is the practically useful form of it: on MAO-B a screening
+campaign can triage on model confidence, and on CDK2 it cannot.
+
+**Answering the question directly:** publication-aware calibration is a real and reliably
+replicating improvement to *coverage*, and it is the only form of conformal prediction that should
+be offered in this regime. It is not a fix for the underlying difficulty: it buys an honest
+interval, not a usable prediction, and on CDK2 the confidence ordering it rests on is close to
+uninformative.
 
 ## 7. Corrections this analysis forced
 
