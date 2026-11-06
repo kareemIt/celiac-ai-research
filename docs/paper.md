@@ -29,9 +29,10 @@ one cached prediction ten times; scored once per molecule the effect reverses to
 an identical configuration differed by −0.028 ± 0.089 AUROC with per-seed swings to 0.18, as large
 as the effect under study; the cause was nondeterministic backward-pass kernel selection rather
 than the quantized optimizer, and after correction the putative catastrophic-forgetting effect did
-not reproduce. (iv) **Publication-level confounding**: a selectivity classifier scoring AUROC 0.974
+not reproduce. (iv) **Publication-held-out collapse**: a selectivity classifier scoring AUROC 0.974
 under scaffold splitting falls to 0.574, 95% CI [0.250, 0.864], when whole source publications are
-held out, because scaffolds do not nest within papers.
+held out, because scaffolds do not nest within papers. We originally attributed this to publication
+identity; §5.14 corrects that attribution, and the mechanism is unresolved rather than established.
 
 We additionally report that cross-reactivity is the norm in this chemical space (103 of 132
 TG2-potent molecules with paired data also inhibit Factor XIII-A at 1 µM), that the transglutaminase
@@ -60,8 +61,15 @@ folds). **A direct label-leakage probe** shows base Qwen3.5-9B holds none of the
 re-rooting the SMILES — same molecule, different string — *improves* every metric, which recall
 cannot do. And **conformal prediction's coverage guarantee, which holds under scaffold shift, fails
 under publication shift with the same calibration recipe** (0.784 against a 0.90 target), while
-calibrating on held-out publications restores it (0.914, Δ +0.113, p = 2.5 × 10⁻⁸) at the price of
-committing on only 15–32% of molecules and erring on 25–39% of those. The fifth failure is thus a
+calibrating on held-out publications brings measured coverage back to target (0.914, Δ +0.113,
+p = 2.5 × 10⁻⁸). **This is the one result that replicates cleanly on all three targets**
+(Δ +0.084 on CDK2, +0.090 on MAO-B, every p < 10⁻⁷), and it is also the one we are most careful
+about: grouped calibration does **not** restore exchangeability and carries no distribution-free
+guarantee under publication shift, so we report it as an empirical regularity and cite the
+hierarchical conformal methods that do have a theorem for an unseen group [21, 22]. Its practical
+value is limited in the same way on every target: it commits on only 15–32% (TG2), 41–48% (CDK2)
+and 46–56% (MAO-B) of molecules and errs on 16–39% of those, so marginal coverage is restored and
+decision quality is not. The fifth failure is thus a
 method carried outside the shift it was validated under; the sixth is our own inference from a
 correlation between two components to the behaviour of their difference, which direct measurement
 refuted.
@@ -115,13 +123,13 @@ turned out to be the more interesting part of the project, and not in the way we
 
 ### 1.3 What this paper actually contributes
 
-Over five campaigns we repeatedly found that our own evaluation protocol, rather than any
+Across eight experimental campaigns we repeatedly found that our own evaluation protocol, rather than any
 modelling choice, was setting the answer. Two results were caught as artefacts only after they had
 been written down as findings. Rather than discard them, we treat them as the subject matter.
 
-The contribution of this paper is a documented case study of **four mechanistically distinct
+The contribution of this paper is a documented case study of **six mechanistically distinct
 evaluation failures on one small, literature-derived bioactivity dataset**, each with a measured
-before-and-after effect size:
+before-and-after effect size, three of them then retested on two independent targets:
 
 | Failure mode | Where it bit | Effect of correcting it |
 |---|---|---|
@@ -129,7 +137,7 @@ before-and-after effect size:
 | Pooling across overlapping folds | Novel-chemistry hypothesis | +0.013 → −0.019 (hypothesis withdrawn) |
 | Training nondeterminism | KL-regularisation ablation | Noise floor −0.028 ± 0.089 → exactly 0 |
 | Publication-held-out evaluation (attribution corrected, §5.14) | Selectivity classification | AUROC 0.974 → 0.574 |
-| A guarantee carried outside its shift | Conformal calibration recipe | Coverage 0.784 → 0.914 against a 0.90 target |
+| A guarantee carried outside its shift | Conformal calibration recipe | Coverage 0.784 → 0.914 against a 0.90 target (replicates on both other targets, §5.13) |
 | Inferring a difference from its components | "Potency enriches cross-reactivity" | 13.6% → 46.7% gate pass rate (claim withdrawn) |
 
 These are not six instances of one problem. Leakage is about molecular redundancy; pooling is
@@ -141,11 +149,21 @@ not a protocol error at all but a reasoning error of ours, caught only by comput
 actually cared about instead of a correlate of it. Each requires a different control, and standard
 practice in the field addresses only the first two consistently.
 
-We state explicitly that these are findings about **this dataset and this target**. We did not run
-the same analyses on other targets and we make no claim that the magnitudes transfer. What we do
-claim is that each failure is mechanistically plausible wherever a dataset is small, assembled from
-heterogeneous literature, and dominated by analog series — a description that fits a large fraction
-of published bioactivity benchmarks.
+We state explicitly that the magnitudes are findings about **this dataset and this target**. Three
+of the six failures were retested on CDK2 and MAO-B (§5.9, §5.13, §5.14) and reproduce in direction
+while differing substantially in size; the remaining three — nondeterminism, pooling and our own
+reasoning error — remain single-target observations, the first because the replication phase ran no
+GPU training. What we claim is that each failure is mechanistically plausible wherever a dataset is
+assembled from heterogeneous literature and dominated by analog series — a description that fits a
+large fraction of published bioactivity benchmarks — and that one of them, the conformal coverage
+failure, now has three-target evidence behind it.
+
+A note on what this paper does **not** claim, since the subject matter invites the inference.
+TG2 is a validated target in celiac disease [20] and the motivation for the dataset, but no
+compound here was synthesised or assayed, every number is a retrospective ranking of published
+measurements, and nothing in this work identifies a candidate therapy. The therapeutic framing
+explains why the dataset is small and literature-derived — which is precisely what makes it a good
+subject for evaluation methodology — and that is the whole of its role.
 
 ---
 
@@ -160,13 +178,19 @@ with reported model performance regardless of the fingerprint, similarity measur
 technique applied, and argued that such models will likely fail prospectively [10]. Sheridan made a
 related argument from the opposite direction, showing that time-split cross-validation yields an R²
 closer to true prospective prediction than random selection does, and recommending it as a standard
-complement to random splits [9].
+complement to random splits [9]. More recently, Guo, Hernandez-Hernandez and Ballester have argued
+that the scaffold split itself is optimistic, reporting substantially worse performance under
+UMAP-based splits across 60 NCI-60 datasets [27], and the broader literature has converged on the
+view that no single split is uniformly correct.
 
 Our work differs in scope and in kind. Those papers establish that redundancy inflates benchmark
-scores in general. We document, on a single target, that four *separate* protocol decisions each
-independently determined a conclusion we were about to report, including two that neither AVE bias
-nor time-splitting would have detected: GPU-level training nondeterminism, and confounding between
-the class label and the source publication.
+scores in general. We document, on a single target, that six *separate* protocol decisions each
+independently determined a conclusion we were about to report, including three that neither AVE
+bias nor time-splitting would have detected: GPU-level training nondeterminism, the unit an AUROC
+is averaged over, and the inseparability of source publication from assay protocol. Where that
+literature asks *which split is hardest*, our §5.14 asks a prior question — whether two protocols
+that report different numbers are even measuring the same quantity — and finds on CDK2 that most of
+the reported difference is the aggregation unit rather than the split.
 
 ### 2.2 Measurement uncertainty in public bioactivity data
 
@@ -190,8 +214,30 @@ Conformal prediction provides distribution-free coverage guarantees under exchan
 are well characterised in-distribution; their behaviour under the chemical distribution shift
 induced by scaffold splitting is less often reported. We find that temperature scaling fails for
 fingerprint models under scaffold shift while conformal prediction holds its nominal coverage
-(§5.5), which is consistent with theory but, to our knowledge, not widely demonstrated on a small
+(§5.6), which is consistent with theory but, to our knowledge, not widely demonstrated on a small
 single-target medicinal-chemistry dataset.
+
+**Conformal prediction is well established in this field, and so is group-aware calibration.** We
+state this explicitly because our §5.13 result is easy to mistake for a new method, and it is not.
+Conformal prediction has been applied to bioactivity prediction at scale and proposed as a
+transparent replacement for applicability-domain heuristics [24, 25], including Mondrian
+(class-conditional) variants for the class imbalance typical of these datasets [6, 24]. Calibrating
+within groups rather than pooling is likewise known: Mondrian conformal prediction conditions on a
+chosen taxonomy, clustered conformal prediction groups classes with similar score distributions and
+calibrates per cluster [26], and *hierarchical* conformal prediction treats the two-level sampling
+structure directly and gives distribution-free sets for an observation from a **previously unseen
+group** under hierarchical exchangeability [21, 22]. Barber et al. [23] supply the general account
+of what happens when exchangeability fails: coverage degrades by a bounded gap rather than
+vanishing.
+
+Against that background our contribution is **empirical and narrow**: the group is the *source
+publication* of a bioactivity measurement, a grouping that is not optional in literature-derived
+data and that coincides exactly with the assay (§5.14), and we show on three targets that the
+standard i.i.d. calibration recipe under-covers badly in that regime while grouped calibration does
+not. We do not propose a new estimator, we do not claim a guarantee, and §5.13 records that our
+grouped scheme violates group exchangeability by construction. What we have not found in the
+cheminformatics literature is a report of publication-held-out conformal coverage on a bioactivity
+dataset, which is the gap we fill.
 
 ### 2.4 Language models as constrained predictors
 
@@ -299,12 +345,38 @@ two-option single-digit decision has exactly one node.
 
 ### 4.5 Statistical treatment
 
-Because molecules are the independent unit and folds overlap across seeds, pooled predictions are
-collapsed to one row per molecule before any interval is computed (§5.3 explains why). Confidence
-intervals are bootstrap percentiles over molecules, 2,000 replicates unless stated. Paired
-comparisons resample the same molecules on both sides. Per-seed comparisons use paired t-tests
-across the ten seeds. Chemical novelty is the maximum Tanimoto similarity to any training molecule;
-effective sample size on novel subsets is assessed by Butina clustering [8].
+**The independent unit is not the same in every experiment, and getting it wrong was one of the six
+failures (§5.3).** We therefore state it per regime.
+
+*Under scaffold and random splitting*, the molecule is the independent unit. Because folds overlap
+across seeds, pooled predictions are collapsed to one row per molecule before any interval is
+computed (§5.3 explains why). Confidence intervals are bootstrap percentiles over molecules, 2,000
+replicates unless stated, and paired comparisons resample the same molecules on both sides.
+
+*Under publication-held-out evaluation, the molecule is not independent.* Molecules from one paper
+are a congeneric series measured in one assay by one laboratory: they share chemistry, label noise
+and protocol, so a bootstrap over molecules treats a correlated block as n independent draws and
+reports an interval that is too narrow. Every interval in §5.14 and §5.15 is therefore a **cluster
+bootstrap over publications** — publications are resampled with replacement and all of a sampled
+publication's molecules travel together — which is why those intervals are wide and why several of
+them cross zero where a molecule bootstrap would not have.
+
+*Comparisons across arms are paired only where pairing is legitimate.* A publication is the same
+molecule set in both arms of §5.14, so those comparisons are paired across publications (37 on
+CDK2, 97 on MAO-B). The split-penalty arms of §5.11 and §5.14 are **not** paired: the scaffold arm
+has 10–20 seeds and the publication arm has 10–11 folds, with no correspondence between a seed and
+a fold, so those use Welch's unpaired t-test. §5.13's coverage comparison is paired per fold *and*
+model, because both regimes score the identical test molecules in the identical fold.
+
+*Multiple comparisons.* Where a family of models is compared within one experiment we report
+Holm-corrected p-values alongside the raw ones and defer to the corrected value: this is what
+leaves §5.10's best entrant significant (Holm p = 0.045), §5.11's ranking inversion inconclusive
+(every Holm p = 1.000), and no MAO-B per-model penalty significant in §5.14. The three-target
+pooled estimates in §5.14 use inverse-variance fixed-effect pooling with Cochran's Q reported, and
+we do not pool across targets where Q indicates heterogeneity.
+
+Chemical novelty is the maximum Tanimoto similarity to any training molecule; effective sample size
+on novel subsets is assessed by Butina clustering [8].
 
 ### 4.6 Determinism
 
@@ -508,7 +580,9 @@ and TGM3 have 5 and 1 potent molecules respectively and are not modellable at al
 of the 132 TG2-potent ones also inhibit FXIII-A at 1 µM**; only 29 are clean. This is a measured
 property of the published chemical space and a caution about the covalent TG2 literature generally.
 
-**Selectivity cannot be predicted.** This is where publication-level confounding appeared.
+**Selectivity cannot be predicted.** This is where the publication-held-out collapse first
+appeared, and where we first (and wrongly) named it publication-level confounding; §5.14 corrects
+the attribution without disturbing the measurement below.
 
 | Task | Molecules | Positives | AUROC | 95% CI |
 |---|---|---|---|---|
@@ -640,7 +714,7 @@ verified byte-identical for every transglutaminase file, which are 100% type B.
 
 **A prediction was registered before running.** Because CDK2 spreads its positives across many
 publications (largest holding 9%, against 38% for TG2's selectivity set), we predicted that
-publication-level confounding would largely *not* reproduce. **The prediction was wrong**, and it is
+the publication-held-out decline would largely *not* reproduce. **The prediction was wrong**, and it is
 reported because a prediction that surfaces only when it succeeds is worthless.
 
 | Split | Shared scaffolds | Shared papers | Mean max Tanimoto | Identical fingerprint | RF AUROC | 95% CI |
@@ -820,15 +894,84 @@ training publications.
 | i.i.d. calibration | **0.784** | **0.601** |
 | publication-wise calibration | **0.914** | **0.810** |
 
+**This replicates on both independent targets** (added 2026-11-05; 10 grouped publication folds
+each, six entrants, 2,078 and 5,091 molecules). Coverage pooled over molecules:
+
+| | TG2 (LOPO) | CDK2 (grouped) | MAO-B (grouped) |
+|---|---|---|---|
+| i.i.d. calibration, target 0.90 | 0.784 | **0.811** | **0.819** |
+| publication-wise, target 0.90 | 0.914 | **0.896** | **0.910** |
+| i.i.d. calibration, target 0.80 | 0.601 | **0.571** | **0.679** |
+| publication-wise, target 0.80 | 0.810 | **0.791** | **0.814** |
+| paired gain at target 0.90 | +0.113 [+0.078, +0.148] | +0.084 [+0.065, +0.102] | +0.090 [+0.079, +0.102] |
+| t-test p | 2.5 × 10⁻⁸ | 1.6 × 10⁻¹² | 1.6 × 10⁻²² |
+| sign test | 52/66 | 55/60 | 60/60 |
+
+Three targets, two publication protocols, same direction and similar magnitude. The i.i.d. regime's
+failure at α = 0.2 is not a mild under-coverage but a collapse: it returns **empty** prediction sets
+for up to 44.7% of CDK2 molecules and 13.5% of MAO-B molecules, which is how a nominal 0.80 becomes
+an observed 0.446 for the CDK2 random forest. Publication-wise calibration emits no empty set on
+any target at any α tested.
+
 **The recipe that works under scaffold shift under-covers under publication shift**, by 0.11–0.14,
 and issues empty prediction sets — the method announcing that a molecule is unlike its calibration
-data — for up to 10% of molecules. Calibrating on whole held-out publications restores coverage at
-every α tested and emits no empty sets: **+0.113 coverage [+0.078, +0.148] paired over 66
+data — for up to 10% of molecules. Calibrating on whole held-out publications brings measured
+coverage back to target at every α tested and emits no empty sets: **+0.113 coverage [+0.078,
++0.148] paired over 66
 fold-and-model pairs, t-test p = 2.5 × 10⁻⁸, sign test p = 2.8 × 10⁻⁶**. The three fingerprint
 models fail i.i.d. calibration worst (0.691–0.806) and the two ChemBERTa-2 variants are nearly
 unaffected (0.874, 0.894), the same ordering as the AUROC decline in §5.11; we note the agreement
-and claim no mechanism. Mondrian quantiles give the same coverage with 30% more decisive answers
-and are the variant to use here.
+and claim no mechanism. Mondrian quantiles give the same coverage with 30% more decisive answers on
+TG2 (singleton fraction 0.267 → 0.348); **that advantage does not replicate** — on CDK2 the gain is
+0.438 → 0.458 and on MAO-B it is 0.523 → 0.499, i.e. nothing and slightly negative. Mondrian is
+worth having for the class-imbalance protection it is designed for [24], but we withdraw "the
+variant to use here" as a recommendation.
+
+**This is an empirical result and not a guarantee, which matters more than it may appear.**
+Split conformal prediction attains its 1 − α coverage when the calibration and test points are
+exchangeable [6]. Our publication-wise regime does **not** restore that condition, and nothing in
+the construction entitles it to the guarantee:
+
+- A calibration molecule and a test molecule come from different publications, and molecules within
+  a publication are strongly dependent — one congeneric series, one assay, one laboratory. The
+  exchangeability that fails for the i.i.d. regime fails for this one too.
+- A formal guarantee for a prediction on a molecule from a **previously unseen group** needs
+  *hierarchical* exchangeability — publications exchangeable with each other, molecules exchangeable
+  within a publication — together with an estimator built for it, such as the hierarchical conformal
+  methods of Dunn, Wasserman and Ramdas [21] and Lee, Barber and Willett [22]. Those use subsampling
+  or a quantile-of-quantiles; we run plain split conformal with a grouped calibration set, which is
+  not the same procedure and does not inherit their theorem.
+- Group-level exchangeability is itself violated **by our own design**. `group_calibration` fills
+  the calibration set with whole publications *smallest-first*, to keep the fitting set large. The
+  consequence is measurable: calibration publications average 11.9 molecules on both replication
+  targets, against a mean test-publication size of roughly 26 on CDK2, and on TG2 19.6 against a
+  38-molecule median test publication. The calibration groups are systematically about half the
+  size of the group being predicted.
+
+What publication-wise calibration actually does is make the calibration distribution *resemble* the
+test distribution — calibration molecules are also scored by a model that never saw their
+publication — which shrinks the coverage gap in the sense of Barber et al. [23] without closing it.
+We therefore report coverage as **measured on three targets** and claim no distribution-free
+guarantee under publication shift. The honest summary is that the fix is empirical, reproducible,
+and theoretically unjustified as stated; §9 names the experiment that would settle it.
+
+**Marginal coverage and a usable answer are different things, and only the first one works.**
+A prediction set containing both labels is covered and says nothing; the quantity a screening
+campaign cares about is the fraction of molecules given a *singleton* set and the error rate among
+those. At α = 0.1 under publication-wise calibration, across six entrants:
+
+| | TG2 | CDK2 | MAO-B |
+|---|---|---|---|
+| marginal coverage (target 0.90) | 0.914 | 0.896 | 0.910 |
+| **singleton fraction** | 0.15–0.32 | 0.41–0.48 | 0.46–0.56 |
+| **error among singletons** | 0.25–0.39 | 0.22–0.27 | 0.16–0.18 |
+
+The replication targets are less bad than TG2 on both axes — unsurprisingly, since they are 5× and
+11× larger — but the shape is identical everywhere: **roughly half the molecules get a decisive
+answer at best, and between a sixth and a quarter of those answers are wrong.** Nominal 90%
+coverage is purchased by returning both labels on the remainder, which concentrates all of the
+error in the decisive fraction. A method that is honest about its own ignorance is not thereby
+useful, and reporting coverage alone would have hidden this on all three targets.
 
 **The practical result is negative, and it is the one a screening campaign cares about.** At
 α = 0.1, publication-wise calibration answers decisively on **15–32% of molecules and is wrong on
@@ -859,7 +1002,7 @@ direction on every entrant of all three targets.
 
 **What reproduces.** With matched molecules and matched training-set size, every one of six models
 loses AUROC under publication hold-out on both replication targets. The magnitude shrinks sharply
-with dataset size: mean penalty −0.198 (TG2, 394 molecules), −0.096 (CDK2, 2,078), −0.042 (MAO-B,
+with dataset size: mean penalty −0.198 (TG2, 428 molecules), −0.096 (CDK2, 2,078), −0.042 (MAO-B,
 5,091). On MAO-B no per-model penalty survives Holm correction.
 
 **Three reasons the decline cannot be attributed to publication identity.**
@@ -868,8 +1011,12 @@ with dataset size: mean penalty −0.198 (TG2, 394 molecules), −0.096 (CDK2, 2
 pooled score averages over molecules. These answer different questions, and the difference is
 large. On CDK2 the random forest scores 0.617 under leave-one-out macro and 0.786 under grouped
 K-fold macro, yet **pooled molecule-level AUROC is the same under both protocols** (0.806 against
-0.802). Re-aggregating the grouped arm's own predictions by publication reproduces leave-one-out's
-numbers exactly. Ranking compounds inside one paper's congeneric series is simply a harder task
+0.802). Re-aggregating the grouped arm's own predictions by publication closes almost all of the
+gap: 0.604, 0.633 and 0.628 for the random forest, logistic regression and XGBoost, against
+leave-one-out's 0.617, 0.629 and 0.629. The residual disagreement is at most 0.013 AUROC, against
+a protocol gap of 0.169 before re-aggregation — so the aggregation unit accounts for roughly 92% of
+it and the two protocols barely disagree about the models at all. Ranking compounds inside one
+paper's congeneric series is simply a harder task
 than ranking across a whole screening set, because the easy between-series contrasts are gone.
 TG2's headline 0.854 → 0.612 compares a molecule-pooled scaffold score against a
 publication-macro leave-one-out score, so part of that gap is the change of question.
@@ -888,8 +1035,10 @@ leave-one-out arm.
 *Novelty.* A publication split also shifts the test set towards novel chemistry, because a paper's
 whole series leaves at once: 54% of CDK2's publication-arm test molecules sit below 0.4
 max-Tanimoto to training, against 5% of its scaffold-arm molecules. Standardising to either arm's
-novelty composition removes the majority of the penalty. Point estimates run 47–98% (CDK2) and
-36–81% (MAO-B) across five band definitions; a publication-clustered bootstrap gives, for the
+novelty composition removes the majority of the penalty. Under the five published bands, the share
+runs **60–80% across the six CDK2 models and 48–71% across the six MAO-B models**; widening to five
+different band definitions gives 47–98% (CDK2) and 36–81% (MAO-B), so the conclusion "a majority"
+does not depend on the banding. A publication-clustered bootstrap gives, for the
 random forest, 78% [33%, 98%] on CDK2 and 60% [28%, 98%] on MAO-B. **The residual crosses zero for
 every model on both targets** (CDK2 random forest −0.022 [−0.091, +0.038]). This is an
 *association*, not a causal decomposition: see the limitations below.
@@ -901,13 +1050,31 @@ publication-held-out split. The within-publication contrast that could estimate 
 with the laboratory fixed covers 1 CDK2 publication and 2 MAO-B publications. The residual is
 therefore "publication identity **and** its measurement protocol", jointly and inseparably.
 
-**The matched comparison, and where the targets disagree.** Holding both the aggregation unit and
-the publication set fixed — scoring each publication's own molecules in both arms, paired across
-the publications both arms can score — the penalty is small and **its sign differs between
-targets**: CDK2 −0.043 to −0.093 (3 of 6 models' intervals exclude zero), MAO-B **+0.009 to
-+0.060** (3 of 6 exclude zero, favouring the held-out arm). TG2's 10 publications give intervals
-spanning ±0.2 and settle nothing. So "holding out a publication reduces performance" is not
-supported as a general claim once the aggregation unit is matched.
+**The matched comparison, and where the targets disagree.** Three things have to be held fixed for
+this comparison to mean anything, and the third is easy to miss. The aggregation unit is matched
+(publication-level macro in both arms). The publication set is matched (paired across the
+publications both arms can score: 37 on CDK2, 97 on MAO-B). And **the molecule sets must be
+matched too**: a publication arm tests a paper's whole series, whereas the scaffold arm tests only
+the molecules whose scaffold group happened to land on the test side, so the unrestricted version
+scores 1,052 CDK2 molecules in one arm against 810 in the other. Restricting both arms to the
+molecules they share, with a bootstrap clustered on publications rather than molecules:
+
+| | CDK2 (37 publications) | MAO-B (97 publications) |
+|---|---|---|
+| penalty range over six models | **−0.034 to −0.110** | **+0.007 to +0.062** |
+| intervals excluding zero | 2 of 6 (rf, XGBoost) | 3 of 6 (XGBoost, logreg, ChemBERTa-2 ft) |
+| largest single effect | XGBoost −0.110 [−0.203, −0.023] | XGBoost +0.062 [+0.019, +0.104] |
+
+**The sign differs between targets, and XGBoost is significant in both directions.** TG2's 10
+publications give intervals spanning ±0.2 and settle nothing. So "holding out a publication reduces
+performance" is not supported as a general claim once the aggregation unit is matched. §5.15
+discusses what the disagreement might be and why we do not resolve it.
+
+*Correction (2026-11-05).* An earlier version of this paragraph reported −0.043 to −0.093 and
++0.009 to +0.060 and described them as matched. Those are the **unrestricted** rows of the same
+result table, in which the two arms score different molecule sets; the molecule-matched rows are
+the ones above. The qualitative conclusion — small penalties of opposite sign — is unchanged, and
+the largest effects are slightly larger under proper matching, not smaller.
 
 **Limitations of the standardisation.** Three, and they bound what the novelty number means.
 (i) It is an adjustment for measured similarity, not an identified causal effect; molecules are not
@@ -930,6 +1097,52 @@ test set — with any remainder confounded between publication identity and assa
 practical recommendation is unchanged and arguably strengthened: a publication-held-out split is
 worth running because it generates a realistic novelty distribution automatically, which a
 scaffold split does not.
+
+---
+
+### 5.15 Why CDK2 and MAO-B disagree, and why we do not resolve it — *not established*
+
+§5.14's matched comparison leaves the two replication targets with penalties of opposite sign, and
+XGBoost significant in both directions. A single universal "publication penalty" is therefore not
+available, and the honest position is to characterise the disagreement rather than to average it
+away. Three observations constrain it; none settles it.
+
+**It is not an artefact of the matched comparison.** The conformal arm reaches the same split by a
+route that shares none of its machinery — no scaffold arm, no publication pairing, no AUROC.
+Selective prediction, ranking molecules by |p − 0.5| and keeping the most confident fraction
+(random forest, publication-wise calibration):
+
+| fraction kept | CDK2 decision error | MAO-B decision error |
+|---|---|---|
+| 100% | 0.309 | 0.279 |
+| 60% | 0.256 | 0.187 |
+| 20% | 0.215 | **0.077** |
+
+On MAO-B, confidence ranking works: discarding the least confident 80% of molecules cuts decision
+error 3.6-fold. On CDK2 it is close to uninformative (1.4-fold over the same range). Two independent
+measurements agreeing on which target is harder is weak evidence that the disagreement is real and
+no evidence at all about its cause.
+
+**Dataset size is the obvious candidate and does not fit cleanly.** The unmatched penalty does fall
+monotonically with size (−0.198 at 428 molecules, −0.096 at 2,078, −0.042 at 5,091), which would
+predict MAO-B's penalty to be small — but it predicts *small*, not *positive*. A size explanation
+accounts for the magnitude ordering and not for the sign change.
+
+**Three structural differences are candidates we cannot separate with two targets.** CDK2 is a
+kinase with a deep, well-conserved ATP pocket and a literature dominated by tight congeneric series;
+MAO-B is a flavoenzyme with a smaller, more rigid cavity and a more fragmented literature (209
+qualifying publications against 83, and 97 against 37 scoreable in both arms). Publication *size*
+is not one of the differences: the median leave-one-out fold holds 19 molecules on both targets.
+Any of these could plausibly make a held-out MAO-B publication
+*easier* than a held-out scaffold group — for instance if MAO-B's scaffold arm is the harder task
+because its scaffold groups cut across series that a publication split keeps intact. We did not
+design an experiment to discriminate these, and with n = 2 targets we could not fit one.
+
+**Status: not established.** We report the disagreement as a constraint on the claim, not as a
+finding with a mechanism. It is the single strongest argument in this paper against treating any of
+these penalties as a transferable constant, and the main reason §10 recommends reporting the split
+rather than a correction factor derived from it. Resolving it needs more targets, which is the one
+additional experiment §9 identifies as scientifically load-bearing.
 
 ---
 
@@ -958,20 +1171,38 @@ effect smaller than about 0.05 AUROC. The specific lesson — that the divergenc
 backward-pass kernel selection rather than in 4-bit quantization or the paged optimizer, both of
 which were our initial suspects — may save others a misdirected investigation.
 
-**Publication-level confounding (§5.7, §5.8)** is detected by asking what else correlates with the
-label besides chemistry. Here, the label correlated with the source publication, and the source
-publication correlated with the chemical series. A scaffold split, the field's standard answer to
-leakage, is powerless against this because scaffolds do not nest within publications: one
+**The publication-held-out decline (§5.7, §5.8, re-attributed in §5.14)** is detected by asking
+what else correlates with the label besides chemistry. A scaffold split, the field's standard answer
+to leakage, is powerless against it because scaffolds do not nest within publications: one
 laboratory's series spans several scaffolds, so holding out a scaffold leaves the same laboratory on
-both sides of the fold. We initially expected this to be a hazard of datasets assembled from a handful of papers, which
-describes most selectivity panels and most kinetic datasets. **The CDK2 and MAO-B validations (§5.9) refuted
-that:** the effect appeared on 2,646 molecules from 351 publications and on 5,840 from 414, in
-neither case with a dominant paper, and on both it exceeded the scaffold effect (−0.068 against
-−0.030, and −0.076 against −0.059). On the evidence of three targets spanning three enzyme classes
-we suggest a publication-held-out split should be reported alongside the scaffold split as a matter
-of course, not only for small panels.
+both sides of the fold. We initially expected this to be a hazard of datasets assembled from a
+handful of papers, which describes most selectivity panels and most kinetic datasets. **The CDK2 and
+MAO-B validations (§5.9) refuted that:** the effect appeared on 2,646 molecules from 351
+publications and on 5,840 from 414, in neither case with a dominant paper, and on both it exceeded
+the scaffold effect (−0.068 against −0.030, and −0.076 against −0.059). Those two comparisons are
+aggregation-matched and stand as reported (§5.14).
 
-A general caution follows from the pattern rather than from any single case. In three of the four
+**What we got wrong here was the mechanism, not the measurement.** We called this failure
+"publication-level confounding" and wrote that the label correlated with the source publication and
+the publication with the chemical series. §5.14 shows that most of the reported difference is
+instead (i) the unit the AUROC is averaged over — about 92% of CDK2's 0.169 protocol gap, since
+re-aggregating the grouped arm's *own* predictions by publication reproduces the leave-one-out
+number to within 0.013 — and (ii) the novelty of the molecules a publication split places in the
+test set, which accounts for a majority of the remainder as an association with wide intervals.
+Whatever is left cannot be assigned to publication identity at all, because **no assay in either
+replication dataset spans more than one publication** (0 of 380 and 0 of 516), so "who published it"
+and "how it was measured" are the same variable in ChEMBL. The detecting question is therefore
+sharper than we first thought: not only "what else correlates with the label?" but "are these two
+protocols reporting the same quantity?" and "is the thing I want to blame identified in this data at
+all?". Neither has a standard answer in the field.
+
+The practical recommendation survives the re-attribution and is arguably strengthened. A
+publication-held-out split is worth reporting alongside the scaffold split because it generates a
+realistic novelty distribution automatically, which a scaffold split does not — but it must be
+reported with its aggregation unit stated, and the resulting penalty must not be read as a
+publication effect or carried to another dataset as a constant (§5.15).
+
+A general caution follows from the pattern rather than from any single case. In three of the six
 instances, the *erroneous* protocol produced the more publishable number: 0.95 instead of 0.87,
 0.807 instead of 0.764, 0.974 instead of 0.574. Error in protocol design is not symmetric in its
 consequences, and a result that looks unusually good on a small dataset is better treated as a
@@ -980,7 +1211,8 @@ diagnostic signal than as a finding.
 **A fifth failure, added later, is of a different kind: a method validated under one shift and
 carried to another.** §5.13 found that conformal calibration on random training molecules — the
 recipe that holds 0.922 coverage under scaffold shift — under-covers by 0.11–0.14 under publication
-shift, and that calibrating on held-out *publications* restores it. Nothing was wrong with the
+shift, and that calibrating on held-out *publications* brings measured coverage back to target on
+all three targets. Nothing was wrong with the
 original experiment or its conclusion; what was wrong was the implicit scope. The detecting question
 is not "is this method principled?" but "what exactly was it exchangeable with when it was
 validated?". We note that this failure mode is specific to distribution-free methods whose guarantee
@@ -1019,8 +1251,9 @@ contains six positive molecules.
 
 Three findings are about TG2 rather than about methodology, and they are mutually reinforcing. The
 chemical space of known TG2 inhibitors is dominated by covalent acrylamides (§5.8); most known
-inhibitors cross-react with Factor XIII-A (§5.7); and models are valid only within 0.4 Tanimoto of
-that space (§5.6). Together these describe a target whose published chemistry is narrow, largely
+inhibitors cross-react with Factor XIII-A (§5.7); and on TG2, models are valid only within 0.4
+Tanimoto of that space (§5.6 — a per-dataset floor, since CDK2 retains AUROC 0.739 below it, §5.9).
+Together these describe a target whose published chemistry is narrow, largely
 non-selective, and poorly suited to the repurposing strategy that first motivated screening.
 
 That is a useful negative conclusion for a medicinal-chemistry programme, and it was reached
@@ -1038,8 +1271,10 @@ eleven models ranks near chance (§5.6, §5.10, §5.11). A model that works on f
 fails on unfamiliar chemistry is not a discovery tool; it is a structure–activity interpolator.
 
 *Second, abstention does not repair this.* Conformal prediction remains honest in that regime but
-commits on 15–32% of molecules and errs on a quarter to a third of those (§5.13). There is no
-subset of trustworthy predictions to act on.
+commits on 15–32% of TG2 molecules and errs on a quarter to a third of those (§5.13). The two
+replication targets improve the proportions without changing the conclusion — 41–48% and 46–56%
+decisive, erring on 16–27% — so even at 5× and 11× the data there is no subset of predictions
+clean enough to act on without experimental confirmation.
 
 *Third, potency is not the limiting property.* A TG2 inhibitor for celiac disease would be taken
 chronically by otherwise-healthy people, which makes selectivity within the transglutaminase family
@@ -1116,11 +1351,52 @@ time, none of which the record contains. A reliable audit needs the primary publ
 pairs flagged because one methods blob is attached to both assays are called *unverifiable*, not
 wrong.
 
-**Eleven folds on the publication arm.** §5.11 and §5.13 both rest on leave-one-publication-out over
-11 publications, with per-fold standard deviations of 0.15–0.26 and fold sizes from 10 to 106
+**Eleven folds on the TG2 publication arm.** §5.11 and §5.13 both rest on leave-one-publication-out
+over 11 publications, with per-fold standard deviations of 0.15–0.26 and fold sizes from 10 to 106
 molecules. Every per-fold model comparison there is underpowered, and we report the two headline
 differences as inconclusive rather than ranking the models. Only §5.13's coverage comparison, with
-66 paired observations, is significant.
+66 paired observations, is significant — and that one is now supported by 60 further paired
+observations on each replication target, where the same comparison gives p = 1.6 × 10⁻¹² and
+1.6 × 10⁻²². The underpowering is specific to TG2's model *rankings*, not to the coverage result.
+
+**TG2 and the replication targets use different publication protocols.** TG2's published arm is
+leave-one-publication-out; CDK2 and MAO-B use grouped 10-fold, because leave-one-out over 83 and
+209 publications was not affordable (3.4 h and 20.8 h respectively for a single protocol check).
+§5.14 establishes that the two protocols agree on pooled molecule-level AUROC but not on
+publication-macro AUROC, so **every TG2-against-replication comparison in this paper is labelled
+with the protocol it used**, and we do not pool a leave-one-out macro score with a grouped one.
+A reader should treat any cross-protocol magnitude comparison here as indicative only.
+
+**Publication-wise conformal calibration has no formal guarantee, and we do not claim one.** §5.13
+sets this out: a calibration molecule from one publication and a test molecule from another are not
+exchangeable, our grouped scheme is plain split conformal rather than a hierarchical conformal
+estimator [21, 22], and `group_calibration` selects publications smallest-first, so the calibration
+groups average roughly half the size of the group being predicted (11.9 molecules against about 26
+on the replication targets). Group-level exchangeability is thus violated by construction. The
+coverage numbers are measured on three targets and reproducible; the theory entitles us to none of
+them, and an experiment that would settle it is in §9.
+
+**The novelty share is an association, not a decomposition.** §5.14's 48–80% is a standardisation
+over measured similarity bands, not an identified causal effect: molecules are not randomised to
+arms, novelty may proxy for other between-arm differences, and the residual crosses zero for every
+model on both targets. Band standardisation also removes only between-band novelty, making the
+figure a lower bound on the association; a continuous adjustment spans 13–80%. On TG2 it is not
+estimable at all for want of common support. Any reading of these numbers as "novelty causes *x*%
+of the decline" is unsupported by this analysis.
+
+**The two replication targets disagree in sign and we cannot explain it.** §5.15 reports the
+disagreement, rules out the matched comparison as its source, and shows that dataset size explains
+the magnitude ordering but not the sign change. With two replication targets we could not fit an
+experiment to discriminate the structural candidates. This is the clearest limit on how far any
+penalty reported here can be generalised.
+
+**The claim checker is a presence test, not an attribution test.** `scripts/check_paper.py`
+recomputes 98 values from the result tables and confirms each appears in the paper; for claims added
+after the replication campaign it also confirms the number appears *in the section that should carry
+it*. Earlier claims are checked against the whole document, so a value could in principle match
+coincidentally elsewhere. This is not hypothetical — before section anchoring was added, all six of
+§5.14's matched penalties "passed" against an unrelated ridge RMSE, a Holm delta and a p-value while
+the section itself quoted the wrong rows of its own table (corrected in §5.14).
 
 **The two conformal calibration regimes are not matched on training data.** Group calibration holds
 out whole publications and therefore fits on 16 fewer molecules and fewer publications than the
@@ -1152,7 +1428,7 @@ A within-series model there would test chemistry rather than inter-laboratory of
 question answered honestly instead of a larger one answered badly. We state in advance that a
 52-molecule fold may also fail, and that this should not be reported as a surprise if it does.
 
-**Independent datasets — begun, not finished.** Three of the four checks have now been repeated on
+**Independent datasets — begun, not finished.** Three of the six checks have now been repeated on
 CDK2 (§5.9) and all three reproduced. MAO-B has since been added as a third target and agrees
 with CDK2 on the ordering. What remains is a target from a *different data source*: all three are
 ChEMBL records shaped by one curation pipeline, so a dataset curated elsewhere would test whether
@@ -1169,12 +1445,30 @@ repurposing is exhausted (§5.6), but analogs within 0.5–0.7 Tanimoto of known
 validated applicability domain. Covalent fragment collections would require the mechanism modelling
 that §5.8 found infeasible, so they should follow the kinetic-unit recovery rather than precede it.
 
+**Compare against hierarchical conformal prediction, which has the theorem we lack.** This is the
+one experiment that would convert §5.13's strongest result from an empirical regularity into a
+supported method claim. Our grouped calibration brings measured coverage back to target on three
+targets but carries no distribution-free guarantee, and violates group exchangeability by selecting
+calibration publications smallest-first (§5.13, §8). Hierarchical conformal prediction [21, 22] is
+built for exactly this sampling structure and does guarantee coverage for an observation from an
+unseen group under hierarchical exchangeability. Running HCP and clustered conformal prediction [26]
+on the same folds would establish whether the guaranteed method matches our empirical one on
+coverage, what it costs in set size — the quantile-of-quantiles constructions are known to be
+conservative — and whether a size-stratified or randomly-chosen calibration grouping closes the
+exchangeability gap we created. It needs no new model fits, only re-calibration of predictions we
+have already saved, and it is the cheapest high-value experiment left in the project.
+
 **Mondrian conformal prediction** stratified by scaffold cluster, to give per-chemotype rather than
-marginal coverage [6]. Now partly done and partly re-prioritised: §5.13 runs the class-wise variant
-on the publication arm and finds it strictly better (same coverage, 30% more decisive answers), and
-also finds that conditional coverage fails in the high-similarity bands — which is the gap
-scaffold-cluster stratification exists to close. It is no longer "incremental": it is the specific
-repair the measured failure points at.
+marginal coverage [6, 24]. Partly done, and the motivation has changed: §5.13 runs the class-wise
+variant on the publication arm, where it buys 30% more decisive answers on TG2 but **nothing on
+either replication target** (singleton fraction 0.438 → 0.458 on CDK2 and 0.523 → 0.499 on MAO-B),
+so we no longer recommend it on the strength of the TG2 result. What does still motivate
+stratification is that **conditional coverage fails on all three targets, though not in the same
+direction**: on CDK2 and MAO-B the unfamiliar bands sit at or below target while the most familiar
+band overshoots (ChemBERTa-2 frozen, 0.876 → 0.933 and 0.872 → 0.973), whereas on TG2 the failure is
+in the high-similarity band itself (logistic regression covers 0.375 in [0.7, 1.01]). Marginal
+coverage hides all of this, and per-chemotype stratification is the gap's natural repair. That the
+direction is target-dependent is a further reason not to ship a single recipe.
 
 **Measure FXIII-A on molecules outside the TG2 training set.** This is now the step the selectivity
 and screening work converges on, and it is experimental rather than computational. A five-gate
@@ -1220,8 +1514,14 @@ more AUROC than scaffold splitting (0.898 → 0.830 and 0.865 → 0.789, non-ove
 entrants, best Δ −0.033 at Holm p = 0.045, §5.10); **base Qwen holds none of the TG2 labels these
 prompts can retrieve** — 631 of 631 abstentions, six distinct answers when forced, and re-rooting
 the SMILES *improves* every metric (§5.12); **i.i.d. conformal calibration under-covers under
-publication shift** (0.784 against 0.90) while publication-wise calibration holds it (0.914,
-Δ +0.113, p = 2.5 × 10⁻⁸, §5.13); **TG2 and FXIII-A potency correlate positively** (r = +0.41) yet
+publication shift while publication-wise calibration empirically does not, on all three targets**
+(0.784 → 0.914 on TG2 at Δ +0.113, p = 2.5 × 10⁻⁸; 0.811 → 0.896 on CDK2 at Δ +0.084,
+p = 1.6 × 10⁻¹²; 0.819 → 0.910 on MAO-B at Δ +0.090, p = 1.6 × 10⁻²², §5.13 — measured coverage,
+no distribution-free guarantee claimed); **most of CDK2's publication-held-out macro decline is the
+aggregation unit**, since re-aggregating the grouped arm's own predictions by publication closes
+about 92% of a 0.169 gap (§5.14); **no assay spans two publications** in either replication dataset
+(0 of 380, 0 of 516), so publication identity and assay protocol are not separately identifiable
+(§5.14); **TG2 and FXIII-A potency correlate positively** (r = +0.41) yet
 the top potency decile still passes a 10-fold selectivity gate at 46.7% against 13.6% (odds ratio
 8.0, p = 0.001, §5.7).
 
@@ -1238,23 +1538,47 @@ QLoRA fine-tuning monotonically erodes the base model's chemical prior (did not 
 deterministic training); **a potency-ranked cascade enriches for cross-reactivity** (our own
 inference from r = +0.41, refuted by direct measurement — §5.7, §6).
 
+**Inconclusive (continued):** the matched publication penalty has opposite signs on CDK2 and MAO-B
+(−0.034 to −0.110 against +0.007 to +0.062, XGBoost significant in both directions), and we offer
+no mechanism (§5.15); **CheMeleon beats the random forest on the publication arm of all three
+targets** (+0.023, +0.023, +0.033; inverse-variance pooled +0.031 [+0.007, +0.055], Cochran's
+Q = 0.09 on 2 df) but at Holm p = 0.057 it misses correction, and the effect is specific to
+CheMeleon rather than to pretrained models, since frozen ChemBERTa-2 pools negative on the same arm.
+
 **Scoped rather than overturned:** conformal prediction holds coverage under distribution shift —
 true under scaffold shift with i.i.d. calibration, false under publication shift with the same
-recipe (§5.13).
+recipe (§5.13). **Novelty explains most of the publication-held-out decline** — supported as an
+association with wide intervals (48–80% across models and targets, residual crossing zero
+everywhere), not as a causal decomposition, and not estimable on TG2 (§5.14). **Mondrian
+calibration is the variant to use** — true on TG2 (30% more decisive answers), null on both
+replication targets, so withdrawn as a recommendation (§5.13, §9).
 
 ### 10.2 The contribution
 
 On literature-derived bioactivity datasets, the evaluation protocol determined the conclusion more
-often than the model did. We document four mechanistically distinct instances on TG2, each with a
-measured before-and-after effect, two of which were caught only after being written down as
-findings; three of the four erroneous protocols produced the more attractive number. Three of the
-four then reproduced on two independent targets of different size, chemistry and provenance
-structure, which also agree on which failure is largest.
+often than the model did. We document six mechanistically distinct instances on TG2, each with a
+measured before-and-after effect, three of which were caught only after being written down as
+findings; three of the six erroneous protocols produced the more attractive number. Three of the
+six then reproduced on two independent targets of different size, chemistry and provenance
+structure. A seventh error, caught during the final audit and not counted among the six because it
+was ours rather than the protocol's, is recorded for the same reason the others are: §5.14's matched
+comparison initially quoted the unmatched rows of its own result table, and the claim checker passed
+it because the digit strings happened to occur elsewhere in the paper. It now verifies a number
+against the section that must carry it (§8).
 
-The second target also constrains the claim in both directions. Publication-level confounding proved
-more general than we predicted, appearing on a 351-publication dataset and there exceeding the
-scaffold effect. The 0.4 Tanimoto applicability floor proved less general than TG2 suggested, and is
-withdrawn as a cross-dataset claim.
+The replication targets constrain the claim in both directions. The publication-held-out *decline*
+proved more general than we predicted, appearing on a 351-publication dataset and there exceeding
+the scaffold effect; its *attribution* proved much weaker than we claimed, and §5.14 re-assigns most
+of it to the aggregation unit and to chemical novelty, with the remainder unidentifiable because
+assay and publication are the same variable in ChEMBL. The 0.4 Tanimoto applicability floor proved
+less general than TG2 suggested, and is withdrawn as a cross-dataset claim. The matched penalty
+itself turns out to have **opposite signs on the two replication targets** (§5.15), which we report
+as an unexplained constraint rather than averaging it away.
+
+If one result here is worth carrying forward, it is not a penalty magnitude but the finding that
+**i.i.d. conformal calibration under-covers badly whenever whole publications are held out, and
+grouped calibration empirically does not** — three targets, two protocols, every p < 10⁻⁷. We offer
+it as a reporting recommendation with an explicit theoretical gap attached, not as a method.
 
 The practical recommendation is modest and specific: alongside the scaffold split that is already
 standard, small-dataset bioactivity studies should report (i) the independent unit behind every
@@ -1264,11 +1588,29 @@ assembled from a small number of papers.
 
 ### 10.3 Status of this draft
 
-This is a complete draft for supervisor review. It is **not** submission-ready: no target venue has
-been selected, and formatting, length limits, author/affiliation details, data-availability and
-competing-interests statements, and any venue-specific reporting checklist remain to be addressed.
-Reference details below were checked against primary records where indicated and should be
-re-verified at submission.
+This is a complete draft for supervisor review, revised on 2026-11-05 after a full numerical and
+statistical audit. It is **not** submission-ready. The blocking items are recorded in
+[`audit_2026-11-05.md`](audit_2026-11-05.md) and summarised here:
+
+*Verified.* Every headline number is recomputed from a committed result table by
+`scripts/check_paper.py` (98 values, all passing); for sections written after the replication
+campaign the check is anchored to the section that must carry the number. The statistical unit is
+stated per regime in §4.5, and publication-clustered intervals are used wherever the molecule is not
+independent. Nine corrections are logged in the audit record, two of which changed numbers in this
+paper (§5.14's matched comparison, and TG2's matched molecule count 394 → 428).
+
+*Outstanding and substantive.* (i) §5.13's coverage result has no formal guarantee and the
+comparison against hierarchical conformal prediction [21, 22] that would supply one has not been
+run; it needs no new model fits (§9). (ii) The CDK2/MAO-B sign disagreement (§5.15) is unexplained
+and cannot be resolved with two replication targets. (iii) References 24 and 25 are unverified
+against publisher records. (iv) Chemprop on the replication targets is the control that would
+separate pretraining from architecture for the CheMeleon observation, which is why that observation
+is reported as exploratory rather than as a finding.
+
+*Outstanding and editorial.* No target venue has been selected, and formatting, length limits,
+author/affiliation details, data-availability and competing-interests statements, and any
+venue-specific reporting checklist remain to be addressed. The paper is currently long for most
+venues and the six-failure structure would need compressing for anything but a methods journal.
 
 ---
 
@@ -1324,6 +1666,35 @@ PubMed or arXiv records during preparation of this draft.
 20. ✓ Schuppan D, Mäki M, Lundin KEA, et al. A randomized trial of a transglutaminase 2 inhibitor
     for celiac disease. *New England Journal of Medicine* 2021;385(1):35–45.
     doi:10.1056/NEJMoa2032441. PMID 34192430.
+21. ✓ Dunn R, Wasserman L, Ramdas A. Distribution-free prediction sets for two-layer hierarchical
+    models. *Journal of the American Statistical Association* 2023;118(544):2491–2502.
+    arXiv:1809.07441. *(Conformal prediction for a new observation from a previously unseen group.)*
+22. ✓ Lee Y, Barber RF, Willett R. Distribution-free inference with hierarchical data.
+    arXiv:2306.06342, 2023 (revised 2024). *(Hierarchical conformal prediction; strengthens the
+    earlier 1 − 2α guarantee to 1 − α by repeated subsampling. Preprint; no journal version located
+    at time of writing.)*
+23. ✓ Barber RF, Candès EJ, Ramdas A, Tibshirani RJ. Conformal prediction beyond exchangeability.
+    *Annals of Statistics* 2023;51(2):816–845. doi:10.1214/23-AOS2276. arXiv:2202.13415.
+    *(Coverage degrades by a bounded gap when exchangeability fails.)*
+24. Alvarsson J, Arvidsson McShane S, Norinder U, Spjuth O. Predicting with confidence: using
+    conformal prediction in drug discovery. *Journal of Pharmaceutical Sciences* 2021;110(1):42–49.
+    *(Review; conformal prediction as an applicability-domain method, including Mondrian variants
+    for imbalanced bioactivity data.)*
+25. Bosc N, Atkinson F, Felix E, Gaulton A, Hersey A, Leach AR. Large scale comparison of QSAR and
+    conformal prediction methods and their applications in drug discovery. *Journal of
+    Cheminformatics* 2019;11:4. *(550 human targets drawn from ChEMBL.)*
+26. ✓ Ding T, Angelopoulos AN, Bates S, Jordan MI, Tibshirani RJ. Class-conditional conformal
+    prediction with many classes. *Advances in Neural Information Processing Systems (NeurIPS)*
+    2023. arXiv:2306.09335. *(Clustered conformal prediction: calibrate per cluster of groups; the
+    guarantee is cluster-conditional, not group-conditional.)*
+27. ✓ Guo Q, Hernandez-Hernandez S, Ballester PJ. Scaffold splits overestimate virtual screening
+    performance. arXiv:2406.00873, 2024. *(Preprint; 60 NCI-60 datasets, scaffold against Butina
+    and UMAP splits.)*
+
+References 21–27 were added during the final audit (2026-11-05) to support §2.1, §2.3, §5.13 and
+§9. Items 24 and 25 were identified through secondary sources; unlike the ✓ items their
+bibliographic details have not been checked against the publisher record, and both must be verified
+before submission.
 
 ---
 
