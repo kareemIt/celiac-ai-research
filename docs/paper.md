@@ -1,9 +1,22 @@
-# When the Split Decides the Answer: Evaluation Methodology, Distribution Shift and Experimental Provenance in Machine-Learned TG2 Inhibitor Prediction
+# When the Split Decides the Answer: Reliability of Molecular Property Prediction under Publication and Chemical Distribution Shift, with Transglutaminase 2 and Celiac Disease as the Motivating Application
 
-**Draft for supervisor review — 2026-10-29 (rev. 2: CDK2 validation added)**
+**Draft for supervisor review — rev. 4, 2026-11-05 (hierarchical conformal comparison added;
+references verified; full numerical and statistical audit)**
 
-*Status: complete draft, not submission-ready. Venue requirements have not been checked; see
-§10.3 before any external submission.*
+*Status: complete draft, ready for supervisor review, **not** submission-ready. See §10.3 for the
+blocking items and [`audit_2026-11-05.md`](audit_2026-11-05.md) for the correction ledger.*
+
+**What this paper is about.** Whether a machine-learned model of molecular bioactivity can be
+trusted when the molecules it is asked about come from a publication, and a region of chemical
+space, that it has never seen. Transglutaminase 2 and celiac disease are the motivating
+application and the reason the dataset looks the way it does — small, literature-derived, dominated
+by analog series — and that shape is what makes the reliability question sharp. **No compound in
+this work is a treatment candidate and none was synthesised or assayed** (§1.3, §7.2).
+
+**Structure.** §1 introduction and motivation · §2 related work · §3–4 dataset and methodology ·
+§5 experimental results · §6–7 discussion · §8 limitations · §9 future work · §10 conclusion ·
+§11 verified references · appendices A–B. Section numbers are stable across revisions, which is why
+§3 and §4 remain separately numbered rather than merged.
 
 ---
 
@@ -88,7 +101,7 @@ leakage, conformal prediction, covalent inhibitors, large language models
 
 ---
 
-## 1. Introduction
+## 1. Introduction and motivation
 
 ### 1.1 The target and the therapeutic gap
 
@@ -224,25 +237,38 @@ single-target medicinal-chemistry dataset.
 
 **Conformal prediction is well established in this field, and so is group-aware calibration.** We
 state this explicitly because our §5.13 result is easy to mistake for a new method, and it is not.
-Conformal prediction has been applied to bioactivity prediction at scale and proposed as a
-transparent replacement for applicability-domain heuristics [24, 25], including Mondrian
-(class-conditional) variants for the class imbalance typical of these datasets [6, 24]. Calibrating
-within groups rather than pooling is likewise known: Mondrian conformal prediction conditions on a
-chosen taxonomy, clustered conformal prediction groups classes with similar score distributions and
-calibrates per cluster [26], and *hierarchical* conformal prediction treats the two-level sampling
-structure directly and gives distribution-free sets for an observation from a **previously unseen
-group** under hierarchical exchangeability [21, 22]. Barber et al. [23] supply the general account
-of what happens when exchangeability fails: coverage degrades by a bounded gap rather than
-vanishing.
+Conformal prediction has been applied to bioactivity prediction at scale across 550 ChEMBL targets
+[25] and proposed as a transparent, consistent treatment of the applicability domain [24]; the
+latter also supplies the framing this paper leans on throughout, that a classification prediction
+set may contain no label, one label or several, so set size is part of the result rather than a
+detail. Mondrian (class-conditional) calibration is standard and long-established [6]. Calibrating
+within groups rather than pooling is likewise known: clustered conformal prediction groups classes
+with similar score distributions and calibrates per cluster [26], and *hierarchical* conformal
+prediction treats the two-level sampling structure directly and gives distribution-free sets for an
+observation from a **previously unseen group** under hierarchical exchangeability [21, 22]. Barber
+et al. [23] supply the general account of what happens when exchangeability fails: coverage degrades
+by a bounded gap rather than vanishing.
 
-Against that background our contribution is **empirical and narrow**: the group is the *source
-publication* of a bioactivity measurement, a grouping that is not optional in literature-derived
-data and that coincides exactly with the assay (§5.14), and we show on three targets that the
-standard i.i.d. calibration recipe under-covers badly in that regime while grouped calibration does
-not. We do not propose a new estimator, we do not claim a guarantee, and §5.13 records that our
-grouped scheme violates group exchangeability by construction. What we have not found in the
-cheminformatics literature is a report of publication-held-out conformal coverage on a bioactivity
-dataset, which is the gap we fill.
+**Closest prior art, and it is close.** Rakhshaninejad et al. [28] evaluate conformal prediction for
+drug–target interaction on the KIBA dataset under four splits including drug-based, protein-based and
+fully unseen drug–protein pairs, and compare marginal, group-conditioned and three cluster-conditioned
+variants, reporting subgroup coverage. That is the same question we ask — does conformal coverage
+survive a group-structured split of bioactivity data, and does group-aware calibration repair it —
+on a different grouping. We found it only during the final audit, and it substantially narrows what
+we can claim.
+
+What remains, stated at the size it actually is. **The methodological novelty is nil**: every method
+we run is published and we propose no estimator. The empirical contribution is three things. First,
+the group is the *source publication* of a measurement — not the drug or the protein — which in
+literature-derived single-target data is the grouping a screening campaign actually faces, and which
+in ChEMBL coincides exactly with the assay, so the two are not separately identifiable (§5.14). We
+have not found that identifiability result stated elsewhere. Second, the comparison includes a
+method with a finite-sample guarantee for an unseen group (§5.16), which [28] does not test. Third,
+and most useful practically, **leave-one-publication-out evaluation structurally cannot support a
+guaranteed calibration at the conventional α = 0.1**, because it leaves one unseen publication per
+fold against the nine such a statement requires — a constraint on experimental design that follows
+from the theorem and, as far as we can tell, has not been pointed out. We claim a three-target case
+study, not a method.
 
 ### 2.4 Language models as constrained predictors
 
@@ -256,7 +282,7 @@ prior. We flag this extrapolation explicitly rather than presenting it as a repl
 
 ---
 
-## 3. Data
+## 3. Dataset
 
 ### 3.1 Sources and provenance
 
@@ -311,7 +337,7 @@ the typical range are dropped.
 
 ---
 
-## 4. Methods
+## 4. Methodology
 
 ### 4.1 Splitting protocol
 
@@ -392,7 +418,7 @@ and backward pass has a deterministic kernel available and nothing required exem
 
 ---
 
-## 5. Experiments and results
+## 5. Experimental results
 
 Each subsection states its conclusion with an explicit status: **demonstrated** (a measured effect
 whose interval excludes the null), **not established** (the experiment ran and did not support the
@@ -929,7 +955,7 @@ unaffected (0.874, 0.894), the same ordering as the AUROC decline in §5.11; we 
 and claim no mechanism. Mondrian quantiles give the same coverage with 30% more decisive answers on
 TG2 (singleton fraction 0.267 → 0.348); **that advantage does not replicate** — on CDK2 the gain is
 0.438 → 0.458 and on MAO-B it is 0.523 → 0.499, i.e. nothing and slightly negative. Mondrian is
-worth having for the class-imbalance protection it is designed for [24], but we withdraw "the
+worth having for the class-imbalance protection it is designed for [6], but we withdraw "the
 variant to use here" as a recommendation.
 
 **This is an empirical result and not a guarantee, which matters more than it may appear.**
@@ -1185,9 +1211,20 @@ exchangeable with one another and observations exchangeable within a group given
 Within-publication exchangeability is reasonable and, importantly, does not require independence —
 a congeneric series in one assay is the dependent-within-group case the theorem is built for.
 Across publications it is *not* true of the corpus: publications are ordered in time and later
-series build on earlier ones. But Theorem 1 does not need the corpus to be exchangeable, only the
-calibration and test groups, and our grouped K-fold assigns publications to folds at random. So we
-run two designs and are explicit about which carries the theorem:
+series build on earlier ones. Nor does it come from the fold assignment, which we checked during
+the final audit: `deal_papers` deals publications largest-first to the lightest fold to equalise
+fold sizes, so a fold's publications are a size-balanced selection rather than a random one.
+
+**The exchangeability we rely on is one we impose, not one we hope for.** Theorem 1 needs only the
+K₁ calibration groups and the test group to be exchangeable, and within a fold we partition its
+publications *uniformly at random* into calibration and test. Conditional on the fold's publication
+set, that randomisation makes them exchangeable by construction, whatever the corpus looks like.
+Two consequences follow. The statement is conditional on that set, and since `deal_papers` balances
+fold molecule counts the size mix inside a fold is not the corpus mix — so these figures are not a
+claim about a publication drawn at random from the literature. And the smallest-first and
+largest-first runs below deliberately remove the randomisation, so the theorem does not cover them;
+they are a sensitivity analysis, not a second estimate. We therefore run two designs and are
+explicit about which carries the theorem:
 
 | design | construction | theorem applies? |
 |---|---|---|
@@ -1292,7 +1329,7 @@ reliable enough to act on without experimental confirmation (§7.2).
 
 ---
 
-## 6. Synthesis: six failures, six different controls
+## 6. Discussion I: six failures, six different controls
 
 The failures are worth separating because they are not variations on one theme, and no single
 methodological habit catches all of them. The first four were found during the original work; the
@@ -1377,7 +1414,7 @@ cover.
 
 ---
 
-## 7. Discussion
+## 7. Discussion II: what the results mean
 
 ### 7.1 What we would now say about language models on this task
 
@@ -1427,7 +1464,9 @@ chronically by otherwise-healthy people, which makes selectivity within the tran
 a safety gate. Of 147 paired molecules only 20 are 10-fold TG2-selective and 10 are selective the
 wrong way; the defensible, format-matched subset is 79 pairs with 13 selective molecules, 8 of them
 in one publication (§5.7). Selectivity cannot be predicted across series, and the five-gate cascade
-that would combine potency with selectivity, applicability domain, uncertainty and drug-likeness
+that would combine potency with selectivity, applicability domain, uncertainty and drug-likeness —
+the last implemented as PAINS [18] and Brenk [19] structural alerts plus covalent-warhead flags in
+`scripts/screen_candidates.py` —
 **cannot be assembled at all**: 0 molecules carry all five inputs, because measured selectivity
 exists only for molecules already inside the training set. Potency prediction is therefore not one
 component of a working pipeline that is missing the others — it is the only component that can
@@ -1618,7 +1657,7 @@ would say whether HCP's set sizes can be reduced without giving up the floor. Th
 methods-paper question rather than a blocker for this one.
 
 **Mondrian conformal prediction** stratified by scaffold cluster, to give per-chemotype rather than
-marginal coverage [6, 24]. Partly done, and the motivation has changed: §5.13 runs the class-wise
+marginal coverage [6]. Partly done, and the motivation has changed: §5.13 runs the class-wise
 variant on the publication arm, where it buys 30% more decisive answers on TG2 but **nothing on
 either replication target** (singleton fraction 0.438 → 0.458 on CDK2 and 0.523 → 0.499 on MAO-B),
 so we no longer recommend it on the strength of the TG2 result. What does still motivate
@@ -1761,39 +1800,68 @@ assembled from a small number of papers.
 
 ### 10.3 Status of this draft
 
-This is a complete draft for supervisor review, revised on 2026-11-05 after a full numerical and
-statistical audit. It is **not** submission-ready. The blocking items are recorded in
-[`audit_2026-11-05.md`](audit_2026-11-05.md) and summarised here:
+Revision 4, 2026-11-05, after a full numerical and statistical audit, a reference verification pass
+and the hierarchical conformal comparison. **Ready for supervisor review. Not ready for
+submission.** The correction ledger is [`audit_2026-11-05.md`](audit_2026-11-05.md); the state is
+summarised here.
 
 *Verified.* Every headline number is recomputed from a committed result table by
 `scripts/check_paper.py` (113 values, all passing); for sections written after the replication
-campaign the check is anchored to the section that must carry the number. The statistical unit is
-stated per regime in §4.5, and publication-clustered intervals are used wherever the molecule is not
-independent. Ten corrections are logged in the audit record, two of which changed numbers in this
-paper (§5.14's matched comparison, and TG2's matched molecule count 394 → 428). §5.16's
-implementation is checked against its own theorem by 15 synthetic-data tests before any result
-from it was read.
+campaign the check is anchored to the section that must carry the number, because a document-wide
+substring test had already passed six values the paper did not contain. The statistical unit is
+stated per regime in §4.5 and publication-clustered intervals are used wherever the molecule is not
+independent. 406 automated tests pass. §5.16's implementation was checked against its own theorem by
+15 synthetic-data tests before any result from it was read, which is how a boundary bug that turned
+the smallest usable calibration set into a trivial predictor was caught. All 28 references have been
+checked against publisher, PubMed, arXiv or institutional-repository records.
 
-*Outstanding and substantive.* (i) **Resolved since the last revision**: §5.16 runs hierarchical
-conformal prediction against our method on the saved predictions, so the headline calibration result
-now has a guaranteed comparator and an explicit recommendation (§10.2). (ii) The CDK2/MAO-B sign
-disagreement (§5.15) is unexplained and cannot be resolved with two replication targets. (iii)
-References 24 and 25 are unverified against publisher records — **now the top blocking item**.
-(iv) Chemprop on the replication targets is the control that would separate pretraining from
-architecture for the CheMeleon observation, which is why that observation is reported as
-exploratory rather than as a finding. (v) Only the split construction of Theorem 1 is implemented;
-the repeated-subsampling and CDF-pooling variants and clustered conformal prediction are not
-compared, which bounds how strongly §5.16 can be read as "HCP is the best group-aware method"
-rather than "HCP holds its floor and ours does not".
+*Nineteen corrections are logged.* Four changed substantive claims in this paper: §5.14's matched
+comparison quoted the unmatched rows of its own table; TG2's matched molecule count was 394 and is
+428; reference 24 was cited for Mondrian conformal prediction, which it does not discuss; and the
+within-fold design's exchangeability was justified by a property the fold assignment does not have
+(§5.16 now rests on our own randomisation instead, which is a stronger argument).
 
-*Outstanding and editorial.* No target venue has been selected, and formatting, length limits,
-author/affiliation details, data-availability and competing-interests statements, and any
-venue-specific reporting checklist remain to be addressed. The paper is currently long for most
-venues and the six-failure structure would need compressing for anything but a methods journal.
+*Outstanding and substantive.*
 
+1. **The CDK2/MAO-B sign disagreement (§5.15) is unexplained** and cannot be resolved with two
+   replication targets. Reported as a constraint on the claim, not papered over.
+2. **Novelty is narrow and the closest prior art is close.** Reference 28 asks our question on a
+   different grouping, and we found it only during the final audit. §2.3 claims what survives: no
+   methodological novelty, and an empirical contribution resting on the publication as the group,
+   the assay/publication non-identifiability, and the design constraint on leave-one-out protocols.
+   A reviewer who knows this literature better may find closer work still.
+3. **Only the split construction of Theorem 1 is implemented.** The repeated-subsampling and
+   CDF-pooling variants [21, 22] and clustered conformal prediction [26] are not compared, so §5.16
+   supports "HCP holds its floor and ours does not", not "HCP is the best group-aware method".
+4. **Chemprop on the replication targets** is the control that would separate pretraining from
+   architecture for the CheMeleon observation, which is why that observation is reported as
+   exploratory rather than as a finding.
+5. **The assay confound cannot be closed within ChEMBL at all** (§5.14). A limitation, not a gap.
+
+*Outstanding and editorial.* No target venue selected. At roughly 21,900 words the manuscript is
+long for every venue we would consider and the six-failure structure needs compressing for anything
+but a methods journal. Author and affiliation details, data-availability and competing-interests
+statements, figure preparation (Appendix B lists figures not yet drawn to publication quality) and
+any venue-specific reporting checklist remain.
+
+*Venues, in the order we would try them.* **Journal of Cheminformatics** is the best fit: it
+publishes evaluation-methodology work at length, has published much of the conformal-prediction
+literature cited here [25], and would not require the failure catalogue to be cut. **Journal of
+Chemical Information and Modeling** is the strongest alternative and the more selective one; it
+would want the manuscript roughly halved and the TG2 application compressed to its motivating role.
+**Machine Learning for Health / ML4Molecules-style workshops** would take the §5.13–§5.16
+calibration thread alone as a short paper, which is the most self-contained and most defensible
+piece of the work, and would be the fastest route to feedback. A general ML venue is a poor fit:
+the methodological novelty is nil by our own assessment, and the contribution is empirical and
+domain-specific.
+
+*What would change the verdict to submission-ready.* Items 2 and 3 above are the only ones that
+affect whether the central claim is correctly bounded, and both are now stated rather than open.
+What remains is editorial: choose a venue, cut to its length, and prepare the figures. We estimate
+that as days of work, not weeks, and no further experiment is required for it.
 ---
 
-## References
+## 11. Verified references
 
 Verification status recorded as of 2026-10-29. Items marked ✓ were checked against publisher,
 PubMed or arXiv records during preparation of this draft.
@@ -1855,13 +1923,17 @@ PubMed or arXiv records during preparation of this draft.
 23. ✓ Barber RF, Candès EJ, Ramdas A, Tibshirani RJ. Conformal prediction beyond exchangeability.
     *Annals of Statistics* 2023;51(2):816–845. doi:10.1214/23-AOS2276. arXiv:2202.13415.
     *(Coverage degrades by a bounded gap when exchangeability fails.)*
-24. Alvarsson J, Arvidsson McShane S, Norinder U, Spjuth O. Predicting with confidence: using
-    conformal prediction in drug discovery. *Journal of Pharmaceutical Sciences* 2021;110(1):42–49.
-    *(Review; conformal prediction as an applicability-domain method, including Mondrian variants
-    for imbalanced bioactivity data.)*
-25. Bosc N, Atkinson F, Felix E, Gaulton A, Hersey A, Leach AR. Large scale comparison of QSAR and
-    conformal prediction methods and their applications in drug discovery. *Journal of
-    Cheminformatics* 2019;11:4. *(550 human targets drawn from ChEMBL.)*
+24. ✓ Alvarsson J, Arvidsson McShane S, Norinder U, Spjuth O. Predicting With Confidence: Using
+    Conformal Prediction in Drug Discovery. *Journal of Pharmaceutical Sciences*
+    2021;110(1):42–49. doi:10.1016/j.xphs.2020.09.055 *(Minireview. Cited for conformal prediction
+    as a consistent treatment of the applicability domain, and for the framing that a
+    classification prediction set may hold no label, one label or several.)*
+25. ✓ Bosc N, Atkinson F, Felix E, Gaulton A, Hersey A, Leach AR. Large scale comparison of QSAR
+    and conformal prediction methods and their applications in drug discovery. *Journal of
+    Cheminformatics* 2019;11:4. doi:10.1186/s13321-018-0325-4. PMID 30631996; PMCID PMC6690068.
+    *(550 human protein targets drawn from ChEMBL. A published comment by Krstajic,
+    doi:10.1186/s13321-019-0387-y, disputes its treatment of random-forest variability; the use
+    made of it here — that conformal prediction has been applied at this scale — is not affected.)*
 26. ✓ Ding T, Angelopoulos AN, Bates S, Jordan MI, Tibshirani RJ. Class-conditional conformal
     prediction with many classes. *Advances in Neural Information Processing Systems (NeurIPS)*
     2023. arXiv:2306.09335. *(Clustered conformal prediction: calibrate per cluster of groups; the
@@ -1870,10 +1942,23 @@ PubMed or arXiv records during preparation of this draft.
     performance. arXiv:2406.00873, 2024. *(Preprint; 60 NCI-60 datasets, scaffold against Butina
     and UMAP splits.)*
 
-References 21–27 were added during the final audit (2026-11-05) to support §2.1, §2.3, §5.13 and
-§9. Items 24 and 25 were identified through secondary sources; unlike the ✓ items their
-bibliographic details have not been checked against the publisher record, and both must be verified
-before submission.
+28. ✓ Rakhshaninejad M, Jurgens M, Dewolf N, Waegeman W. Conformal Prediction for Uncertainty
+    Estimation in Drug-Target Interaction Prediction. arXiv:2505.18890, 2025. *(Preprint, not peer
+    reviewed at time of writing. Conformal coverage on KIBA under four splits including
+    drug-based, protein-based and fully unseen drug–protein pairs, comparing marginal,
+    group-conditioned and three cluster-conditioned variants. The closest prior art to §5.13 and
+    §5.16; see §2.3.)*
+
+References 21–28 were added during the final audits of 2026-11-05. **All bibliographic details
+above marked ✓ have now been checked against publisher, PubMed, arXiv or institutional-repository
+records.** Two corrections arose from that check and are logged in
+[`audit_2026-11-05.md`](audit_2026-11-05.md): reference 24 does not discuss Mondrian conformal
+prediction and had been cited for it, so Mondrian is now attributed to [6] alone; and reference 28
+was located during the check, is closer prior art than anything previously cited, and required
+§2.3's novelty claim to be narrowed. One further candidate reference — a 2026 *Journal of Chemical
+Information and Modeling* paper on leave-assay-out validation of bioactivity models — could not be
+verified against a publisher record and is therefore **not cited**, although it would be relevant
+to §2.1 if confirmed.
 
 ---
 

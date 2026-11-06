@@ -58,12 +58,21 @@ For the within-fold design below, the honest reading is "plausible but not estab
   - Within a publication, molecules are a series the authors chose to report together. Treating
     them as exchangeable given the publication is reasonable; they are certainly not independent,
     and the theorem does not ask them to be.
-  - Across publications, exchangeability is the doubtful half. Publications are ordered in time and
-    later series build on earlier ones, so the K publications of a target are not an exchangeable
-    sample in any strict sense. Our grouped K-fold assigns publications to folds at random, which
-    makes the calibration and test publications *within one fold* exchangeable with each other by
-    construction -- and that, not exchangeability of the whole corpus, is what Theorem 1 needs.
-    This is why the within-fold design is the one we call theorem-faithful.
+  - Across publications, exchangeability does NOT hold for the corpus: publications are ordered in
+    time and later series build on earlier ones. It also does not come from the fold assignment --
+    `deal_papers` deals publications largest-first to the lightest fold to equalise fold sizes, so
+    a fold's publications are a size-balanced selection, not a random one. What the within-fold
+    design relies on instead is our OWN randomisation: given the fold's set of publications, we
+    partition them uniformly at random into K1 calibration groups and the rest as test, so the
+    calibration groups and any one test group are exchangeable by construction, conditional on that
+    set. That is what Theorem 1 needs, and it is an assumption we impose rather than one we hope
+    the data satisfies -- which is why this design is the one we call theorem-faithful.
+    Two consequences follow and are reported. The guarantee is conditional on the fold's
+    publication set, and because `deal_papers` balances fold molecule counts the size mix inside a
+    fold is not that of the corpus, so these coverage figures should not be read as a statement
+    about a publication drawn at random from the literature. And `--selection smallest|largest`
+    deliberately destroys the randomisation, so the theorem does not apply to those runs; they are
+    a sensitivity analysis, not a second estimate.
   - Publication sizes vary 10 to 224. Theorem 1 tolerates that for the 1-alpha bound. The sharper
     1-alpha result for repeated subsampling additionally wants exchangeable group sizes, which we
     do not claim; we do not implement that variant.
@@ -231,8 +240,9 @@ def within_fold(d, alpha, cal_frac, selection, leak_frac, rng):
     """Theorem-faithful design: calibration and test publications both come from one fold.
 
     The model for fold k was fitted on the other folds, so it has seen neither the calibration nor
-    the test publications, and the grouped K-fold assigned the fold's publications at random --
-    which is what makes them exchangeable with one another.
+    the test publications. Exchangeability between them comes from `pick_calibration` partitioning
+    the fold's publications uniformly at random, not from the fold assignment -- `deal_papers`
+    balances fold sizes and is not a random deal. See the module docstring.
     """
     need = feasible_k1(alpha)
     rows, skipped = [], 0
