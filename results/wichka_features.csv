@@ -1,0 +1,19 @@
+check,value,expected
+their committed matrix rows,336.0,336.0
+bits their features.py selects but their matrix does not,21.0,0.0
+our rebuild rows,336.0,336.0
+their committed matrix columns,667.0,667.0
+our rebuild columns,667.0,667.0
+their actives,216.0,216.0
+our rebuild actives,216.0,216.0
+rebuild active,216.0,
+rebuild inactive,45.0,
+rebuild unspecified,75.0,
+rebuild non_ic50_negatives,44.0,
+their fingerprint rows matched by ours,336.0,336.0
+fingerprint keys unique on both sides,303.0,
+rows compared cell by cell,303.0,
+paired fingerprint cells identical,1.0,1.0
+paired descriptor cells within 1e-4 relative,0.9972968725443973,1.0
+descriptor columns reproducing on every paired row,207.0,210.0
+paired labels identical,1.0,1.0
