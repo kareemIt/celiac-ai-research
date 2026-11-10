@@ -1688,7 +1688,7 @@ configuration it refits every outer fold and scores it four ways: on the trainin
 folds' reduced training size (`test_small`). The three differences are `overfit_gap = in_sample −
 oof`, `shift_gap = oof − test_small`, and `size_effect = test − test_small`, the last being the
 learning-curve control the design named in advance as its single largest threat. 572 folds across
-three targets, three model families and three splitting arms; 2 h 41 m on CPU; 498 folds carry a
+three targets, three model families and three splitting arms; about 1 h 50 m of CPU fitting; 498 folds carry a
 committed AUROC and the remaining 74 have one class in the test fold, where AUROC is undefined and
 no control exists either, so they are excluded rather than imputed. All 498 reproduced the committed
 score bit-exactly, with the tied-pair allowance of §8 used zero times.

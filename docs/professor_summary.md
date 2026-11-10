@@ -1,7 +1,10 @@
 # Research summary for supervisor review — one page
 
-Kareem Itani · 2026-11-05 · full manuscript: [`paper.md`](paper.md) · corrections ledger:
-[`audit_2026-11-05.md`](audit_2026-11-05.md)
+Kareem Itani · written 2026-11-05, revised 2026-11-10 · full manuscript: [`paper.md`](paper.md) ·
+corrections ledger: [`audit_2026-11-05.md`](audit_2026-11-05.md)
+
+*The 2026-11-10 revision adds finding 4 (the overfitting measurement), replaces the literature
+sentence in §6, and corrects the counts in the status line. No earlier finding changed.*
 
 **We have not discovered a celiac disease treatment and make no such claim.** TG2 is the
 motivating application; the contribution is about how molecular AI is evaluated.
@@ -26,7 +29,7 @@ Qwen3.5-9B under QLoRA. **Targets:** TG2 (631 molecules), and two chemically unr
 targets chosen in advance — **CDK2**, a kinase (2,646 molecules, 351 publications) and **MAO-B**, an
 oxidase (5,840 molecules, 414 publications).
 
-## 3. The three strongest findings
+## 3. The strongest findings
 
 1. **How you split the data decided the conclusion more often than which model you used.** Holding
    out whole *source publications* — each contributing its own chemistry, measured in its own
@@ -44,6 +47,22 @@ oxidase (5,840 molecules, 414 publications).
    held-out publications restores it (0.914 / 0.896 / 0.910). Worse, at a nominal 80% target the
    standard method collapses into *empty* prediction sets for up to 44.7% of CDK2 molecules — it
    reports confidence by refusing to answer.
+4. **The models are not overfitting, and the experiment that shows it also shows why the obvious
+   check is worthless.** This is your question, measured directly rather than argued. Every
+   committed configuration was refit on all 572 folds and scored on its own training fold, out of
+   fold inside the training fold, and on the test fold at both full and reduced training size — the
+   last as a control, because an out-of-fold estimate trains on less data and is pessimistic for
+   reasons that have nothing to do with the models. The in-sample-minus-out-of-fold gap is large
+   everywhere (0.085–0.332), and it is uninformative: median in-sample AUROC is 0.975 for logistic
+   regression, 0.993 for the random forest and 0.997 for XGBoost, because 2048 fingerprint bits
+   against a few hundred training molecules let all three simply separate the training labels. That
+   gap measures the ceiling on fitting training data, not whether anything we reported is inflated,
+   and **nothing in the decomposition shows a single committed test score to be optimistic.** A
+   distribution-shift term that survives the control appears only on publication-held-out CDK2 and
+   MAO-B (+0.154 against a control of +0.005); on TG2 it does not resolve at all, which the design
+   said in advance might happen; and even where it is readable it cannot be separated from the
+   aggregation effect of finding 2. Written up in
+   [`overfitting_2026-11-10.md`](overfitting_2026-11-10.md).
 
 ## 4. Hierarchical conformal prediction: why it matters, and its limits
 
@@ -83,8 +102,13 @@ constraint in 4(b), which we have not seen stated and which rules out the most i
 CDK2 and MAO-B **disagree in sign** on one secondary finding and we cannot resolve it with two
 targets. Only the split construction of the theorem is implemented, so our claim is "HCP holds its
 floor where ours does not", *not* "HCP is the best group-aware method". Chemical novelty is reported
-as an association, never a cause — the novelty bands lack common support. The literature scan was
-six targeted queries, not systematic.
+as an association, never a cause — the novelty bands lack common support. **The literature coverage
+is no longer thin but it is still not systematic:** the twenty papers you supplied have all been
+verified against a primary record and eight of their methods read in full
+([`literature_20papers_2026-11-10.md`](literature_20papers_2026-11-10.md)), taking the paper from 29
+verified references to 53, but the search strategy was your list plus targeted queries rather than a
+protocol. Four categories are still unsearched: handling of inactive and censored data, further
+activity-cliff literature, TG2 selectivity against Factor XIII-A, and intestinal delivery.
 
 **Wet-lab validation** would need 16 untested compounds from the one chemical series whose
 selectivity model survives a cluster split, spanning the predicted range rather than its top, with
@@ -103,13 +127,17 @@ Four questions:
 
 1. **Is the decomposition finding (3.2) the paper, or is it too deflationary?** It reinterprets a
    result the field reports as a generalisation failure. That may read as a correction rather than a
-   contribution.
+   contribution. Finding 4 has since reached it from a second direction, which strengthens it but
+   also makes the paper's centre of gravity a reinterpretation of other people's result.
 2. **Is "no methodological novelty, but a useful empirical constraint" a publishable framing**, or
    should we build something new first?
 3. **Does the unresolved CDK2/MAO-B disagreement need a third replication target** before
    submission, or is reporting it as a bound on the claim sufficient?
 4. **Venue and length** — is halving for *JCIM* worth it over *J Cheminformatics* at full length?
 
-**Status:** ready for your review; not submission-ready. ~21,900 words (too long for any venue),
-no venue chosen, figures not at publication quality. 406 automated tests pass, 113 headline numbers
-recomputed from source, 19 corrections logged with evidence.
+**Status:** ready for your review; not submission-ready. ~30,400 words (too long for any venue, and
+4,000 words longer than at the last revision), no venue chosen, figures not at publication quality.
+597 automated tests pass, 246 headline numbers recomputed from source. 19 corrections are logged
+with evidence in [`audit_2026-11-05.md`](audit_2026-11-05.md); corrections made since then are
+recorded in the dated documents, most recently
+[`work_summary_2026-11-10.md`](work_summary_2026-11-10.md).

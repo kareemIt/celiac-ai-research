@@ -1,6 +1,7 @@
 # Tier-1 overfitting decomposition — result
 
-Run 2026-11-10, 2 h 41 m CPU. Design pre-registered in `docs/proposal_overfitting_2026-11-09.md`
+Run 2026-11-10. Fitting time as the script measured it: 1,487 s on TG2, 3,761 s on CDK2 and
+1,328 s on MAO-B, so about 1 h 50 m in total. Design pre-registered in `docs/proposal_overfitting_2026-11-09.md`
 (proposal A, tier 1); measurement `scripts/run_overfitting.py`; per-fold output
 `results/overfitting_tier1.csv` (572 folds); cell summary `results/overfitting_tier1_cells.csv`
 via `scripts/summarise_overfitting.py`.
