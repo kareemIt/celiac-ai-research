@@ -11,6 +11,9 @@ checkpoints/
 # track the per-seed result tables (small, and the record of every experiment); not logs or arrays
 results/*
 !results/*.csv
+# 118 MB of exported MAO-B folds, over GitHub's 100 MB file limit.
+# scripts/export_splits.py regenerates it byte-for-byte.
+results/splits_maob.csv
 results_v1_preaudit/
 *.safetensors
 *.bin

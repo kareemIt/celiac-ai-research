@@ -44,3 +44,20 @@ merged with ChEMBL target CHEMBL2730. Units are µM, confirmed against the paper
 measurements are kept as negatives where the bound proves non-potency. See `docs/data.md`.
 
 Synthetic data in `test_qlora.py` only validates infrastructure. Its results are not research findings.
+
+## Regenerating the exported folds
+
+`results/splits_maob.csv` (1.28 M rows, 118 MB) is not in the repository: it exceeds GitHub's
+100 MB file limit. It is derived, not a source of truth, and every fold in it is seeded, so it
+rebuilds exactly:
+
+```bash
+python scripts/audit_candidate_targets.py --targets maob   # data/raw/chembl/maob_activities.csv
+python scripts/export_splits.py --target maob              # results/splits_maob.csv
+```
+
+The first step is only needed on a fresh clone, since `data/raw/` is untracked like all raw data
+here. The scripts that read the file (`run_sota.py`, `run_hcp.py`, `analyse_cliffs.py`,
+`analyse_per_class.py`, `analyse_error_sources.py`, `analyse_fold_balance.py`,
+`audit_assay_confound.py`) need it present first. The smaller `splits_cdk2.csv` and
+`splits_tg2.csv` are committed.
