@@ -116,9 +116,23 @@ in principle [1, 17].
 against placebo in 163 patients with celiac disease undergoing a 6-week gluten challenge, and met
 its primary endpoint: the change in villus-height-to-crypt-depth ratio relative to placebo was 0.44
 (95% CI 0.15 to 0.73) at 10 mg and 0.48 (95% CI 0.20 to 0.77) at 100 mg [20]. The authors describe
-it as a proof-of-concept trial. No TG2 inhibitor has yet been approved, and not every programme has
-progressed — GSK3915393 completed a Phase 1 study in healthy volunteers (NCT04604795) and was
-subsequently removed from GSK's celiac pipeline, with no reason published [16].
+it as a proof-of-concept trial. ZED1227's design is described by its originators: it binds the
+active state of TG2 selectively and forms a covalent bond with the catalytic-site cysteine [30].
+A transcriptomic analysis of 116 duodenal biopsies from 58 patients in the same programme reports
+that oral TG2 inhibition kept expression profiles for mucosal morphology, inflammation,
+differentiation and nutrient absorption close to gluten-free-diet levels [31].
+No TG2 inhibitor has yet been approved, and not every programme has progressed — GSK3915393
+completed a Phase 1 study in healthy volunteers (NCT04604795) and was subsequently removed from
+GSK's celiac pipeline, with no reason published [16].
+
+**TG2 inhibition is also not the only route being pursued**, which bounds how much any
+TG2-focused result can claim. Current reviews of the celiac pipeline cover luminal gluten-degrading
+enzymes, barrier modulation and oral tolerance induction alongside TG2 inhibition [32, 34], a
+systematic review treats TG2 inhibitors and regulatory-T-cell approaches as parallel strategies with
+an evidence base that is still mostly preclinical or early-phase [33], and the diagnostic and
+clinical-trial landscape is reviewed by Tye-Din [35]. We cite these to place the target, not to
+compare strategies: this paper evaluates prediction for one target and says nothing about which
+therapeutic route is most likely to succeed.
 
 So the target is pharmacologically validated in humans while the chemical space remains thin, which
 is the gap computational prioritisation might narrow. It also raises the stakes on selectivity: a
@@ -199,7 +213,28 @@ closer to true prospective prediction than random selection does, and recommendi
 complement to random splits [9]. More recently, Guo, Hernandez-Hernandez and Ballester have argued
 that the scaffold split itself is optimistic, reporting substantially worse performance under
 UMAP-based splits across 60 NCI-60 datasets [27], and the broader literature has converged on the
-view that no single split is uniformly correct.
+view that no single split is uniformly correct. MoleculeNet established the benchmark-suite
+convention these arguments operate within [36].
+
+Two independent analyses published since report the same collapse we measure, on different data and
+a different task, which is the strongest external support our grouped-evaluation argument has.
+Agboola et al. built 186,663 matched molecular pairs from 16,897 Ki and Kd measurements across 20
+human kinases and compared five within-kinase partitioning schemes of increasing stringency against
+leave-one-kinase-out validation: within-kinase average precision fell from 0.821 to 0.309 under
+Murcko-scaffold grouping and to 0.211 under connected-molecular-component grouping, at which point
+within-target and cross-target performance were no longer distinguishable (p = 0.31 and p = 0.17)
+[46]. Tamura, Miyao and Bajorath report the same direction across 100 ChEMBL activity classes:
+median balanced accuracy near 0.7 and MCC near 0.5 when pairs are split randomly, falling to about
+0.6 and below 0.25 when 20% of *compounds* are held out so that training and test sets are
+structurally distinct, with accuracy not scaling with model complexity [43].
+
+Three qualifications matter for how much we may lean on them. Both evaluate *pair* classification,
+where we classify single compounds, so the collapse is analogous rather than identical. The
+non-significant p values in [46] show indistinguishability at that sample size, not equality. And
+the memorisation mechanism asserted in [43]'s abstract is the authors' interpretation of the
+leakage comparison — the paper contains no control experiment isolating memorisation — so we cite
+the collapse as observed and not its explanation, which is the same distinction we hold ourselves to
+in §8.
 
 Our work differs in scope and in kind. Those papers establish that redundancy inflates benchmark
 scores in general. We document, on a single target, that six *separate* protocol decisions each
@@ -803,8 +838,10 @@ carried between datasets. §5.6 has been qualified accordingly.
 
 The obvious objection to §5.2 is that it compares a language model against fingerprints and
 concludes nothing about *molecular* deep learning. We therefore ran the comparison the objection
-asks for: Chemprop v2 (D-MPNN), Chemprop with RDKit 2D descriptors, CheMeleon (descriptor-pretrained
-D-MPNN), ChemBERTa-2 frozen and fine-tuned, MoLFormer-XL frozen, and a tabular foundation model,
+asks for: Chemprop v2 [39] — the directed message-passing architecture of Yang et al. [37], as
+packaged by Heid et al. [38] and rewritten for v2 — Chemprop with RDKit 2D descriptors, CheMeleon
+(descriptor-pretrained D-MPNN) [47], ChemBERTa-2 frozen and fine-tuned [48, 49], MoLFormer-XL
+frozen [50], and a tabular foundation model [51],
 against the project's three tuned baselines and both Qwen configurations. Identical splits exported
 once and re-read by every entrant, 20 seeds, a 12-configuration budget for each new entrant, and a
 reproduction gate passed before any new model ran (random forest 0.898 ± 0.057 reproduced to 1e-16).
@@ -830,6 +867,17 @@ molecules against ChemBERTa-2's 77 million, is 13× larger in parameters, and sc
 frozen. Two SMILES transformers an order of magnitude apart in corpus size, both below fingerprints
 and the larger one lower, make this a statement about the representation class on small datasets
 rather than about one checkpoint.
+
+**This is the expected result, not a surprising one, which bounds what it contributes.** Two
+independent benchmarks report the same ordering on far more data than we have: Praski, Adamczyk and
+Czech find that pretrained molecular embedding models do not generally beat classical fingerprint
+baselines on molecular representation benchmarks [52], and Deng et al. attribute much of the
+apparent progress in molecular property prediction to elements other than the learned
+representation itself [53]. Our contribution here is therefore not the finding that fingerprints
+win — that is established — but that the margin survives on this target under scaffold- and
+publication-grouped evaluation with a reproduction gate, and that the ranking inverts
+inconclusively under publication held-out splitting (§5.11). Readers should treat §5.10 as a
+local replication of a known result, not as evidence against learned representations in general.
 
 One result deserves its own line because it qualifies the headline. **Qwen QLoRA has the best AUPRC
 in the study, 0.896 ± 0.041**, while being significantly worse on AUROC. It ranks the top of the
@@ -1327,6 +1375,382 @@ widens prediction sets until the stated error rate is met, and under publication
 refusing to commit on most molecules. Nothing here makes a prediction on an unseen publication
 reliable enough to act on without experimental confirmation (§7.2).
 
+### 5.17 The publication-shift penalty is not class-symmetric — *direction-consistent on three targets, not established on any one*
+
+Every classification result above this point is threshold-free: AUROC, AUPRC, and MCC at a fixed
+0.5 cut. None of them says whether a model that loses accuracy under publication shift is losing it
+on the actives or on the inactives. For a screening cascade meant to nominate compounds for assay
+that is the question that matters, because missing an active and raising a false alarm are not the
+same failure and they have the same AUROC. This section fills that gap from predictions already
+saved — `results/sota_preds*.csv` hold per-molecule labels and probabilities for every model, arm
+and fold, so no model was retrained and no new data was used.
+
+Three operating points are reported, all fixed before any output was read: the 0.5 cut used
+elsewhere in the paper, the training fold's own prevalence, and the cut maximising balanced accuracy
+on the test fold. **The third is an oracle and is not an achievable operating point.** It is
+reported only as an upper bound, flagged in the data by an `achievable` column, and it is not quoted
+as performance anywhere: on TG2 `paper_lopo` the random forest reaches 0.711 balanced accuracy at
+the oracle cut against **0.506** at the 0.5 cut and **0.545** at the prevalence-matched cut, and the
+oracle's apparent gain scales with how few molecules it was chosen on (+0.020 on 205-molecule folds,
++0.183 on 19-molecule folds), which is the signature of selection on noise rather than of a
+recoverable threshold.
+
+Aggregation follows §5.14. A leave-one-publication-out fold contains exactly one publication, so its
+fold average already is a publication average; a `scaffold_pub` fold contains 4 to 113 publications.
+Comparing the two arms on the fold therefore repeats precisely the unit error §5.14 identifies, and
+all comparisons below use the **publication** as the unit, each publication averaged over the folds
+it appears in. The fold-unit figures are retained in `results/per_class_*_summary.csv` and the
+contrast between the two is reported rather than suppressed, because the conclusion depends on it.
+
+On the matched arms, at the 0.5 cut, equal-weighting publications:
+
+| target | sensitivity | specificity |
+|---|---|---|
+| TG2 (`scaffold_pub` → `paper_lopo`) | 8 of 10 models fall, mean **−0.163**, sign-test p = 0.109 | 3 of 10 fall, mean +0.054, p = 0.344 |
+| CDK2 (`scaffold_pub` → `paper_grouped`) | **6 of 6 fall**, mean −0.101, p = 0.031 | 4 of 6 fall, mean −0.026, p = 0.688 |
+| MAO-B (`scaffold_pub` → `paper_grouped`) | 3 of 6 fall, mean −0.001, p = 1.000 | **6 of 6 fall**, mean −0.035, p = 0.031 |
+
+**That cross-target pattern is not robust to the choice of estimator, and the reason is instructive.**
+Equal-weighting discards any publication that reports only one class, and in the *scaffold* arms
+that is half to three-quarters of the units — not because the literature is one-sided, but because a
+scaffold split cuts each publication across train and test and the test-side remnant is often all
+one class. On TG2, 9% of publications are genuinely single-class while **50%** of publication-fold
+units are; on CDK2 35% against 71%, on MAO-B 37% against 72%. In the publication-held-out arms,
+where whole publications go to test, the two figures coincide exactly.
+
+An estimator that keeps every unit — summing confusion matrices across publications and dividing
+once — gives a third answer, reported with a cluster bootstrap in
+`results/per_class_pooled_rates.csv`. For the TG2 random forest's sensitivity:
+
+| estimator | reference arm | shifted arm | Δ |
+|---|---|---|---|
+| fold average | 0.823 | 0.320 | −0.503 |
+| pooled confusion, every publication | 0.848 | 0.349 | **−0.499** |
+| equal-weight publication | 0.660 | 0.320 | −0.340 |
+
+Under pooling, TG2 sensitivity falls for 9 of 10 models (mean −0.284) while specificity falls for
+only 2 of 10 (mean +0.068); CDK2 falls on both (−0.091, −0.074) and **MAO-B becomes symmetric**
+(−0.041, −0.041) rather than specificity-leaning. Three estimators therefore agree on TG2 and
+disagree on MAO-B. The only statement robust to the choice is the narrow one:
+
+> **TG2 loses sensitivity and not specificity. CDK2 and MAO-B lose both.**
+
+Neither estimator is preferable alone — equal-weighting is right in principle but throws away units
+for an artefactual reason, pooling keeps them and lets the largest publications dominate, which is
+the weighting §5.14 warns about. Both are reported, and a conclusion that depends on the choice is
+treated as unresolved. The real fix is not an estimator but a protocol: do not split publications
+across folds, so that the unit used for aggregation matches the unit used for splitting.
+
+The largest single effect is the TG2 random forest, whose sensitivity falls from 0.660 to **0.320**
+while its specificity *rises* from 0.559 to 0.761. Under publication shift it stops predicting
+"potent" on a test set that is 54% positive. XGBoost behaves the same way, −0.294 sensitivity against
++0.231 specificity. Their AUROC drops — 0.854 to 0.612 and 0.855 to 0.573 — report the net of these
+two movements and are silent about the direction.
+
+**Not one comparison survives Holm correction on this unit** (best p_holm 0.939 on TG2, 0.216 on
+CDK2, 0.421 on MAO-B). On the fold unit the TG2 sensitivity result had been significant for two
+models; the correction removes that, because the 20 `scaffold_pub` seeds contain only 11 distinct
+publications and variation between publications is much larger than between folds. Both units are
+written to `results/per_class_shift_tests.csv` so the dependence is visible.
+
+Two further limits travel with these numbers. A publication reporting only actives yields no
+specificity and one reporting only inactives yields no sensitivity; those units are skipped and
+counted, and they are **20% to 52%** of units depending on arm (MAO-B `scaffold_pub`: 52% give no
+sensitivity). And the shifted arm is not the same protocol across targets — leave-one-publication-out
+on TG2, grouped folds on CDK2 and MAO-B — so the cross-target comparison varies protocol as well as
+target.
+
+**Status: direction-consistent on TG2, not established on any target.** The claim this supports is
+that the penalty is not class-symmetric on TG2, where sensitivity falls under all three estimators
+and specificity does not under any of them, and that the replication targets lose both rates. It is
+not a demonstrated effect at any conventional threshold — no comparison survives Holm under any
+estimator, and under pooling 9 of 10 TG2 sensitivity comparisons have overlapping 95% intervals. A
+null at 11 publications is a statement about power. §5.20 supplies a mechanism that makes the
+cross-target variation unsurprising and removes the need for a target-specific explanation.
+
+One corollary is firm regardless, and it bears on how the field reports this task. **Accuracy is
+uninformative on these folds.** Chemprop on TG2 `paper_lopo` posts the highest accuracy of any
+entrant in that arm, **0.704**, at AUROC **0.542** and balanced accuracy **0.515** — a model at
+chance discrimination looking like the arm's best, because it predicts "potent" for 69% of a fold
+that is 54% positive. The published TG2 study's headline is accuracy (§1.1); so is the 64% baseline
+it improves on. Neither number should carry weight on data of this shape, and balanced accuracy with
+the confusion matrix beside it should be quoted instead.
+
+### 5.18 Activity cliffs are harder for every model, on every target — *demonstrated*
+
+§5.6's applicability analysis bins molecules by distance to the training set. An activity cliff is a
+different object: a pair of *mutually similar* molecules with divergent potency. A model can score
+well in a similarity band and still invert every cliff inside it, and van Tilborg et al. [29] report
+exactly that across 24 methods and 30 ChEMBL targets. That measurement had not been made on our
+data.
+
+The definition is theirs, with their published parameters rather than any of ours: a pair is a cliff
+when it is similar by at least one of Morgan Tanimoto ≥ 0.9 (radius 2, 1024 bits), generic
+Bemis–Murcko scaffold Tanimoto ≥ 0.9, or normalised SMILES Levenshtein similarity ≥ 0.9, **and** its
+potency differs by more than tenfold. Scoring is pairwise and therefore threshold-free: for a
+discordant pair whose two molecules fall in the same test fold, the model is right if it assigns the
+potent one the higher probability. The design adds a control the original lacks — `distant` pairs,
+with the same tenfold potency gap but *below* the similarity cut — because without it "cliffs are
+hard" cannot be separated from "large potency gaps are hard".
+
+Cliff accuracy is below distant accuracy in **58 of 58** model × arm comparisons across the three
+targets, 16 of them significant after Holm within arm. On `scaffold_pub`:
+
+| target | model | cliff | distant | Δ | p_holm |
+|---|---|---|---|---|---|
+| TG2 | Chemprop | **0.468** | 0.808 | −0.340 | 0.004 |
+| TG2 | Random forest | 0.736 | 0.891 | −0.155 | 0.083 |
+| CDK2 | Random forest | 0.763 | 0.901 | −0.138 | 0.019 |
+| MAO-B | Logistic regression | 0.728 | 0.824 | −0.097 | 0.010 |
+
+Chemprop on TG2 `scaffold_pub` ranks cliff pairs at 0.468, *below chance*: it does not merely weaken
+on cliffs, it inverts them. Tests are paired per fold, since one molecule sits in many pairs and
+pairs are not independent while each fold contributes one number. The distant pairs are the easy
+ones, so the penalty is not an artefact of large potency gaps.
+
+Where our data **does not** reproduce [29] is its framing that overall performance fails to predict
+cliff performance. Correlating the two rankings across models, one Spearman per arm: TG2 `scaffold`
+and `scaffold_pub` both **0.770** (p = 0.009), MAO-B `scaffold_pub` **0.943** (p = 0.005), against
+0.657 (p = 0.156) on CDK2 `scaffold_pub` and 0.143 to 0.515 with no significance on the three shifted
+arms. Within distribution, choosing a model by its headline score is not misleading; under
+publication shift the correlation collapses. Each correlation is over 6 to 10 models, so this is a
+qualification on [29] rather than a refutation, and the shifted arms have less power as well as
+fewer entrants. Individual models still reorder even where the aggregate holds: on TG2 `scaffold`
+CheMeleon is sixth of ten on distant pairs and first on cliffs.
+
+An incidental observation about the definition deserves recording, because it changes what
+"structurally similar" means in practice. Of the similar discordant pairs found, the generic-scaffold
+test admits 1,840 on TG2 against 23 for the fingerprint test and 270 for Levenshtein; the pattern
+holds on CDK2 (9,404 / 34 / 636) and MAO-B (72,054 / 214 / 2,097). The generic scaffold discards atom
+and bond identity, so our cliff pairs are overwhelmingly *same-skeleton, different-substituent*
+pairs, not near-identical-fingerprint pairs.
+
+**That observation invites the obvious objection — that "cliff" here means little more than "shares
+a skeleton" — so a labelled sensitivity analysis scores the same predictions under fingerprint-only
+similarity.** All five definitions are retained side by side in `results/cliff_ranking_*.csv`; the
+MoleculeACE rows above are unchanged.
+
+| definition | TG2 | CDK2 | MAO-B | median cliff pairs per fold |
+|---|---|---|---|---|
+| `three_test` (MoleculeACE) | 30/30 worse, 2 Holm-significant | 15/15, 8 | 13/13, 6 | 15 / 36 / 634 |
+| `morgan_only_0.9` | 9/10 worse, 1 | 12/15, 5 | 13/13, 2 | 1 / 2 / 3 |
+| `morgan_only_0.8` | 26/30 worse, 2 | 15/15, 7 | 13/13, 6 | 3 / 3 / 9 |
+| `morgan_only_0.7` | 25/30 worse, 2 | 15/15, **10** | 13/13, **12** | 5 / 6 / 54 |
+
+The result is not an artefact of the loose test. Under fingerprint-only similarity the direction
+holds in 34 of 38 comparisons at the strictest cut, unanimously on both replication targets at every
+cut, and with *more* Holm-significant comparisons at the 0.7 and 0.8 cuts than under MoleculeACE's
+own rule. Two qualifications: at 0.9 the pair counts fall to 1–3 per fold, so that row is a direction
+check and no more; and TG2 weakens slightly under every strict definition, consistent with its having
+only 23 fingerprint-similar discordant pairs in the entire inventory. No sweep over the tenfold
+potency cut was run — the published value was fixed first.
+
+**Status: demonstrated.** The direction is unanimous across 58 comparisons, three targets and four
+splitting arms, with a matched-potency control and a definition taken from the source. The
+qualification in the third paragraph is reported as exploratory.
+
+**External context, and what it implies for whether this is fixable.** Our result is that cliffs are
+harder, not that nothing helps. Cui et al. report that an activity-cliff-aware loss — a soft-margin
+triplet term whose margin is set by the label gap itself, mined online per batch — improved all 30
+targets under a Bemis–Murcko scaffold-held-out split and 28 of 30 under a split that removes test
+molecules above 0.90 Tanimoto to training [42]. Those two supplementary protocols are the ones
+comparable to our arms; their headline results use an easier split (80/20 within spectral ECFP
+clusters) and should not be read as evidence in this regime. Set against that, Tamura et al. found
+accuracy not scaling with model complexity on cliff *pair* classification [43] — but a loss function
+on single-compound regression and architecture scaling on pair classification are different
+interventions on different tasks, so the two are not in conflict and neither settles the question
+for us. One finding in [42] bears directly on how we would adapt it: gating candidate triplets by
+fingerprint, scaffold or SMILES thresholds discarded useful triplets and did worse than unrestricted
+latent-space mining, which is a caution against the publication- or scaffold-gated variant we would
+reach for first. Separately, López-Pérez and Miranda-Quintana's eSIM and eSALI give a
+linear-time measure of activity-landscape roughness over a whole set [41], which is a cheaper
+summary than our pairwise inventory; we have not used it, and we do not cite their splitting
+comparison, whose selecting method also chooses the test set.
+
+### 5.19 Validation-fold class balance does not explain per-seed variance — *not established*
+
+Scaffold splitting keeps analog series intact, so a validation fold's class balance is whatever the
+shuffle gives: on TG2 it ranges from **8.5%** positive (seed 0: 59 molecules, 5 of them active) to
+73%, in a dataset that is 47.9% positive. Every entrant selects its configuration on that fold, and
+§5.10 records that seeds 10–19 are harder for every model and that Chemprop's spread (± 0.123) is far
+wider than the random forest's (± 0.077). The hypothesis was that selecting on a near-single-class
+fold degrades the choice, and that the damage should concentrate in models where the validation fold
+also decides *how much* training happens.
+
+It was pre-registered before fitting, including the control group, the predicted sign and the rule
+that p > 0.05 is a null rather than a trend. One design assumption had to be corrected first: the
+fingerprint models do **not** ignore the validation fold — `fit_sklearn` tunes the random forest,
+logistic regression and XGBoost on it over 12, 4 and 8 configurations — so no model here ignores it,
+and the control group was redefined by what the fold decides. Early-stopping group: Chemprop,
+Chemprop + RDKit 2D, CheMeleon, ChemBERTa-2 fine-tuned. Control: the other six.
+
+**The hypothesis is not supported.** Regressing per-seed test AUROC on |validation positive fraction
+− 0.5|, every confidence interval spans zero on both TG2 arms and the largest r² is **0.051**. The
+point estimates mostly carry the *opposite* sign to the prediction, and the group contrast is absent:
+mean slope **+0.120** for the control against **+0.046** for the early-stopping group. MAO-B produces
+three slopes at p < 0.05, all positive and spread across both groups, on an arm whose validation
+prevalence never crosses 0.5 — so there |pos − 0.5| is a relabelling of prevalence — and where
+validation imbalance correlates with training-set size at r = 0.583. On CDK2 it correlates with test
+positive fraction at r = −0.647 (p = 0.043). Under whole-group splitting the folds are not
+independent of one another, so a slope on one fold's composition is not evidence about that fold.
+
+The observation that prompted the experiment has a simpler explanation. Correlating each model's mean
+AUROC with its SD across seeds gives r = **−0.912** (p = 0.0002) on TG2 `scaffold`, −0.841 (p = 0.002)
+on TG2 `scaffold_pub` and −0.888 (p = 0.018) on MAO-B `scaffold_pub`: weaker models vary more,
+whatever they select on. The group-level SD gap is driven as much by frozen MoLFormer, a control
+model, as by Chemprop. This explanation was found after looking at these data and is a hypothesis for
+a future test, not a result, and it does not reach significance on CDK2.
+
+**Status: not established, and withdrawn as a mechanism.** Validation-fold class balance is not added
+to §6's catalogue. The result is kept because it removes a live confound from §5.10 — the
+ten-entrant ranking cannot be dismissed on the grounds that some models were tuned on degenerate
+validation folds — and because a null obtained against a written prediction is worth more than one
+never tested. Stratifying validation folds by class costs nothing and would remove the question
+entirely; it is hygiene rather than a fix, it is not justified by any measured benefit here, and it
+has not been applied retroactively because doing so would change committed numbers.
+
+### 5.20 Errors concentrate by publication, and the models predict the local class prior — *concentration demonstrated, mechanism direction-consistent*
+
+§5.17 reports *that* the class asymmetry exists without saying *why*, and its cross-target
+variation needed a target-specific story. This section locates the errors and offers one mechanism
+for all of it. Everything runs on the committed predictions at the 0.5 cut.
+
+**Difficulty is a property of the molecule, not of the model.** Counting how many of the
+(model × seed) scorings misclassify each molecule, against a null in which each model errs
+independently at its observed marginal rate: 8.2% of TG2 `scaffold_pub` molecules are misclassified
+by at least nine of ten entrants where the null predicts 0.0%, and 51.2% are misclassified by none
+where the null predicts 8.9%. The pattern repeats on CDK2 (11.7% against 0.1%) and MAO-B (10.7%
+against 0.2%). About one molecule in ten defeats essentially every architecture, which is part of why
+§5.10's ten-entrant ranking is so tightly bunched.
+
+**Errors concentrate in particular publications, and this is the clearest result in the section.**
+Against a permutation null that reassigns molecules to publications at random while holding
+publication sizes fixed, the observed between-publication spread in error rate is two to three times
+the null mean on every target and arm, at **p < 0.001** throughout: TG2 0.112 against a null mean of
+0.048, CDK2 `paper_grouped` 0.224 against 0.068, MAO-B `paper_grouped` 0.208 against 0.069. The worst
+fifth of publications carries 44% to 60% of all error mass while holding 24% to 35% of the molecules.
+Assay type cannot be separated from publication here — §5.14 records that no assay in either
+replication dataset spans two publications (0 of 380, 0 of 516) — so a per-assay analysis would be
+this one relabelled, and none was run.
+
+**The mechanism: a publication's own class balance predicts which error it attracts.** Rank
+correlation between a publication's active fraction and each of its error rates:
+
+| target | arm | FN rate against active fraction | FP rate against active fraction |
+|---|---|---|---|
+| TG2 | `scaffold_pub` | −0.633 (p = 0.067, 9 publications) | **+0.733** (p = 0.025) |
+| CDK2 | `scaffold_pub` | **−0.657** (p < 0.0001, 46) | **+0.757** (p < 0.0001, 42) |
+| MAO-B | `scaffold_pub` | **−0.607** (p < 0.0001, 74) | **+0.702** (p < 0.0001, 133) |
+| CDK2 | `paper_grouped` | **−0.524** (p < 0.0001, 64) | +0.374 (p = 0.010, 47) |
+| MAO-B | `paper_grouped` | **−0.358** (p = 0.0001, 120) | **+0.514** (p < 0.0001, 169) |
+
+Every false-negative correlation is negative and every false-positive correlation positive, across
+three targets and two protocols. Inactive-dominated publications have their few actives missed — on
+TG2, CHEMBL1770135 (8 actives, 43 inactives) has a false-negative rate of 0.981 against a
+false-positive rate of 0.060 — while active-dominated ones have their few inactives called active:
+CHEMBL3886499 (22 actives, 13 inactives) reverses it at 0.156 and 0.691.
+
+**The same mechanism accounts for §5.17's sensitivity collapse.** Error rate by maximum Tanimoto to
+the training fold, split by type: on MAO-B under publication shift, 87.9% of actives below 0.4
+Tanimoto are missed while 5.5% of inactives are false alarms; on TG2 the figures are 0.593 and 0.190,
+on CDK2 0.465 and 0.272. Above 0.7 Tanimoto the asymmetry reverses — TG2 0.283 false negative against
+0.943 false positive. **Unfamiliar molecules are called inactive and familiar ones active**, which is
+nearest-neighbour behaviour and makes the cross-target variation in §5.17 unsurprising: the direction
+of the asymmetry follows how far the shifted arm's molecules land from training, not anything about
+the protein.
+
+**One further contrast bears on the task definition.** Error rate against |pIC50 − 6|, the distance
+to the 1 µM cut, is monotone within distribution on all three targets — TG2 0.395 within 0.25 log
+falling to 0.157 beyond 1 log, CDK2 0.376 to 0.131, MAO-B 0.456 to 0.176 — so a molecule within a
+factor of about 1.8 of the threshold is two to three times more likely to be misclassified. Those
+errors are largely a consequence of binarising a continuous measurement, and they are the
+molecule-level counterpart of §5.18's near-threshold pairs. **Under publication shift on TG2 the
+relationship flattens entirely** (0.421 / 0.375 / 0.357 / 0.367): within-distribution error sits at
+the boundary where it is partly unavoidable, shifted error is spread across the whole potency range
+where it is not. A single threshold-free number cannot distinguish the two.
+
+**Status: the concentration is demonstrated; the mechanism is direction-consistent.** The
+permutation test on publication identity is significant at p < 0.001 on every target and arm, and
+the concordance result holds far outside its null everywhere. The class-prior mechanism has the same
+sign in all ten correlations with eight significant at p < 0.05, but it is a correlational account
+of an association, not an intervention: nothing here manipulates the local prior and observes the
+error rate change. It should be read as the most economical explanation available for §5.17, §5.18
+and §5.20 together, and as a hypothesis that a training intervention could test.
+
+---
+
+### 5.21 Overfitting does not explain the generalisation failures, and the one separable shift term is confounded — *null demonstrated, shift term demonstrated on two targets, its identity not established*
+
+The experiment designed to answer the overfitting question directly has now run. For each committed
+configuration it refits every outer fold and scores it four ways: on the training fold itself
+(`in_sample`), out-of-fold inside the training fold under the same grouping as the outer split
+(`oof`), on the outer test fold (`test`), and on the outer test fold after refitting at the inner
+folds' reduced training size (`test_small`). The three differences are `overfit_gap = in_sample −
+oof`, `shift_gap = oof − test_small`, and `size_effect = test − test_small`, the last being the
+learning-curve control the design named in advance as its single largest threat. 572 folds across
+three targets, three model families and three splitting arms; 2 h 41 m on CPU; 498 folds carry a
+committed AUROC and the remaining 74 have one class in the test fold, where AUROC is undefined and
+no control exists either, so they are excluded rather than imputed. All 498 reproduced the committed
+score bit-exactly, with the tied-pair allowance of §8 used zero times.
+
+**The overfitting gap is large everywhere and it is not informative.** It runs from 0.085 to 0.332
+with tight intervals in all 25 cells. Median in-sample AUROC is 0.975 for logistic regression, 0.993
+for the random forest and 0.997 for XGBoost. The design pre-registered that fully grown bagged trees
+reproduce their training labels and that their in-sample score therefore says nothing about
+generalisation; the measurement shows the same holds for the other two families, because 2048-bit
+fingerprints against a few hundred training molecules leaves all three in the regime where the
+training labels are separable. `in_sample` is pinned near the ceiling by capacity, so `overfit_gap`
+is close to a restatement of `1 − oof`: it measures the train-fit ceiling, not whether any test score
+in this paper is inflated. **This is the null the proposal predicted, and it is the answer to the
+question that prompted the experiment** — nothing in the decomposition shows the committed scores to
+be optimistic, and the failures of §5.17 through §5.20 are not explained by memorisation.
+
+**A shift term separable from the learning curve exists on two targets and only under one arm.** Of
+27 cells including the two pre-registered pooled fallbacks, five have a shift interval excluding
+zero with the control below a third of the effect, and all five are publication-held-out arms on
+CDK2 and MAO-B: `shift_gap` +0.127 to +0.174 against controls of 0.002 to 0.013. Pooled over those
+228 folds it is +0.154 [+0.127, +0.181] with a control of +0.005 [−0.004, +0.015], 170 of 228 folds
+positive, Wilcoxon p ≈ 6 × 10⁻²⁰ — the control is a thirtieth of the effect. In every other cell the
+term sits at or below its own control with an interval crossing zero: TG2 scaffold −0.004 to +0.015,
+TG2 scaffold_pub −0.017 to +0.004, CDK2 scaffold_pub +0.011 to +0.018, MAO-B scaffold_pub +0.002 to
++0.009, and on both `paper_grouped` arms the control is the larger of the two. The publication
+penalty is not a general property of these models.
+
+**On TG2 the decomposition does not resolve, exactly as the design said it might.** The proposal
+fixed in advance that TG2's publication arm holds about ten publications per training fold, that a
+grouped inner 5-fold on that would be too noisy for a per-model statement, and that the fallback was
+to pool across models. Pooled, `shift_gap` is +0.032 [−0.045, +0.106] with a Wilcoxon p of 0.35
+against a control of −0.018 [−0.035, −0.001] — the same order as the effect. Per model it is wider
+still, logistic regression giving −0.002 [−0.124, +0.143]. By the criteria fixed before the run,
+tier 1 succeeds on CDK2 and MAO-B and **fails on the paper's primary target**, and the failure is
+reported here rather than worked around. This also withdraws the single-model preview previously
+quoted in §9: it came from TG2 logistic regression, which is one of the cells that turn out not to
+resolve, and it should not have been given a directional reading.
+
+**What the readable term is not.** Calling +0.154 publication shift requires a caveat that weakens
+it considerably. `oof` is pooled across the training fold's publications, while `test` under
+leave-one-publication-out is a single publication scored on its own; those are different
+aggregations, and §5.14 already demonstrated that the publication-held-out decline on this data is
+mostly novelty and aggregation rather than publication identity. The arm that separates the two
+agrees with §5.14 here: `paper_grouped` holds publications out but scores them pooled, and its shift
+term is +0.001 to +0.013, below its own control. The penalty appears when scoring is confined to one
+publication and vanishes when the same held-out publications are pooled. **So the one readable term
+in this decomposition is consistent with the aggregation effect of §5.14, and this experiment does
+not separate the two.** Separating them needs an outer arm that holds out several publications,
+scores them pooled, and matches leave-one-publication-out's training size — close to what
+`paper_grouped` already is, and a cheap measurement rather than a new method.
+
+One coverage gap is inherited rather than introduced: MAO-B's publication-held-out arm appears for
+the random forest only, because the measurement refits what the committed sweep selected and
+`results/sota_maob.csv` holds that arm for `rf` alone.
+
+**Status: the null on overfitting is demonstrated**, in the weak but adequate sense that the
+in-sample column cannot support an overfitting claim for any of these families at this data size and
+the shift decomposition finds nothing hidden behind it. **The shift term is demonstrated on CDK2 and
+MAO-B** under leave-one-publication-out with its learning-curve confound bounded two orders below
+it, **not established on TG2**, and **its identity is not established on any target**. Full table in
+`docs/overfitting_2026-11-10.md`; per-fold output in `results/overfitting_tier1.csv`.
+
 ---
 
 ## 6. Discussion I: six failures, six different controls
@@ -1610,9 +2034,110 @@ corpora, and the probe speaks to labels rather than structures.
 models in §5.10; Chemprop+RDKit, which placed third on the publication arm by AUROC, is the most
 arguable omission.
 
+**Observed generalisation failure is not demonstrated overfitting, and we do not call it that.**
+Every result in this paper measures performance falling when the test distribution changes — a new
+scaffold, a new publication, a cliff pair. None of it establishes that a model memorised its
+training set, because the quantity that would show it, the gap between training and held-out
+performance, was never measured: training-fold predictions were not saved by the sweep and
+recovering them would require refitting every entrant. §5.1's leakage finding is the closest thing
+in the paper to a memorisation result, and it is a property of the *split*, not of the models. The
+word "overfitting" therefore appears nowhere as a conclusion, and §5.17–§5.19 in particular should
+be read as evidence about evaluation protocols rather than about model capacity.
+
+**Per-class rates rest on the publications that report both classes, and the splitting creates the
+problem.** §5.17 aggregates on the publication, which is the right unit, but a publication reporting
+only actives yields no specificity and one reporting only inactives yields no sensitivity. Such
+units are skipped and counted. Decomposing the count shows the shortfall is mostly an artefact: in
+the scaffold arms 50% to 72% of publication-**fold** units are single-class while only 9% to 37% of
+**publications** are, because a scaffold split cuts each publication across train and test and the
+test-side remnant is often all one class. In the publication-held-out arms the two figures coincide.
+So the equal-weight estimator discards half to three-quarters of its units in the reference arm for
+a reason that has nothing to do with the literature, and computes the remainder on a
+class-filtered half of each publication. §5.17 therefore reports a pooled estimator beside it and
+treats conclusions that depend on the choice as unresolved. This limits §5.17 more tightly than any
+other analysis in the paper.
+
+**Two publication averages exist and they differ.** Averaging every publication-fold row weights
+large publications more heavily; averaging each publication over the folds it appears in weights
+them equally. On TG2 the random forest's `scaffold_pub` sensitivity is 0.789 the first way and 0.660
+the second. §5.17 uses the equal-weight figure throughout, because a publication appearing in eight
+scaffold seeds is not eight independent observations, but the 0.13 difference is a reminder that
+"aggregated per publication" is not a single well-defined operation.
+
+**The activity-cliff definition is dominated by one of its three tests.** §5.18 adopts
+MoleculeACE's rule unchanged [29], and on our data the generic-scaffold test admits nearly every
+pair — 1,840 on TG2 against 23 for the fingerprint test. Our cliff pairs are therefore mostly
+same-skeleton, different-substituent pairs. Censored negatives are excluded entirely, since a ">10
+µM" record has no pIC50 and the tenfold criterion cannot be applied to it; that removes 12–26% of
+similar discordant pairs, non-randomly, as they are the weakest-potency molecules. No sweep over the
+0.9 and tenfold parameters was run.
+
+**One pre-registered design assumption was wrong and had to be rewritten mid-experiment.** §5.19's
+control group was specified as the models that ignore the validation fold. No such model exists in
+the sweep — every entrant tunes on it. The group was redefined by what the fold decides before any
+fit was run, and the original specification is recorded in the experiment's write-up, but a
+pre-registration amended after inspecting the code is weaker than one that held.
+
+**Random-forest AUROCs in this paper are not bit-reproducible, and are quoted to more digits than
+that supports.** The forests are fitted with `n_jobs=-1`, so scikit-learn accumulates per-tree
+probabilities in thread-completion order and repeated `predict_proba` calls on a single fitted model
+differ by about one unit in the last place. Where a fold contains positive/negative pairs at exactly
+equal predicted probability, that last bit decides the tie and AUROC moves by 1/(n_pos·n_neg).
+Measured directly on the TG2 scaffold arm, seed 15: 25 calls on one fitted forest returned
+0.8608647 and 0.8619734, one tied pair of that fold's 902 apart, on a fold with five exactly-tied
+pairs. Only folds carrying exactly tied pairs can move at all, which makes the effect occasional
+rather than pervasive — on this fold just 5 of 902 pairs are tied — but it is real and it is not
+removed by fixing `random_state`. §5.21's per-fold refit now bounds the rate from two runs of the
+same 498-fold sweep: the first run differed on exactly one fold, the second on none. The informative
+observation is not the rate but which value appeared. That one disputed fold reproduced at
+0.8619734 the second time and at 0.8608647 the first, the two values the determinism probe records
+for it, so bit-exactness on a fold carrying tied pairs is a draw between known values rather than a
+property of the pipeline. Consequently
+no random-forest figure here should be read as stable beyond three decimal places, and any
+reproduction check that demands bit-exactness should be expected to fail occasionally for reasons
+that are not a defect. The effect is an order of magnitude below every reported difference it could
+affect. XGBoost's float32 leaf sums introduce a separate, smaller discrepancy (3.8e-8) already
+noted in §4.6.
+
+**The reported accuracy of the prior TG2 model is not comparable to the figures in this paper, and
+we do not compare them.** Wichka and Lai report 93% [1]; read against its own methods, that figure
+is a stratified 5-fold cross-validation mean over all 336 classified molecules rather than a
+held-out test score, on a set that is 64.3% active, against a majority-class baseline whose AUROC is
+0.50. Their negative class pools 45 documented inactives with 75 compounds recorded as
+"unspecified", and their split is stratified random with no scaffold, publication or temporal
+holdout. Every quantity we report is threshold-free AUROC under scaffold- or publication-grouped
+splits with censored records handled explicitly, so the two numbers measure different things on
+differently constructed labels. A faithful reproduction is feasible — their winning model is fully
+specified — but it must report their protocol and ours separately rather than placing 93% beside any
+AUROC in this paper. `docs/literature_20papers_2026-11-10.md` records the full reading.
+
 ---
 
 ## 9. Future work
+
+**Separate the aggregation effect from publication shift.** §5.21 has run, and it leaves one
+question that its own design cannot answer: its readable shift term compares an out-of-fold estimate
+pooled across publications against a test fold that is a single publication, so the term is
+confounded with the aggregation effect of §5.14. The measurement that would separate them is an
+outer arm holding out several publications at once and scoring them pooled while matching
+leave-one-publication-out's training size. The existing `paper_grouped` arm is close to this and its
+shift term is already near zero, which is why we expect the separated effect to be small; what is
+missing is the matched training size, and adding it is a modest rerun rather than a new design.
+Two cheaper gaps sit alongside it: MAO-B's publication-held-out arm was only ever committed for the
+random forest, and TG2's publication arm has too few publications for the decomposition to resolve
+at all, which no amount of compute fixes.
+
+**Candidate interventions, with the prediction stated first.** Two directions are better motivated
+by the external literature than by anything we have run. An activity-cliff-aware loss [42] reports
+gains under scaffold-held-out and similarity-capped splits, which are the protocols comparable to
+ours; conformation-aware pretraining [40] reports improvements on structure-activity-cliff
+benchmarks. Against both, accuracy did not scale with model complexity on cliff pair classification
+[43]. We record now, before running either, that the honest prior is a small or absent effect on
+publication-held-out TG2, that a fair comparison needs the tuned random forest at the same budget,
+and that a null must be reported as a null. On the uncertainty side, combining data-based and
+model-based signals through an error model [44] and the robust estimator of [45] are alternatives to
+the hierarchical conformal route of §5.16; both are cited from abstracts only, so their designs
+would have to be read before adoption.
 
 **Recover the missing kinetic units.** Two publications (103 rows) were dropped from §5.8 because
 ChEMBL stores their rate constants without units. Reading the units from the primary literature
@@ -1745,6 +2270,49 @@ no mechanism (§5.15); **CheMeleon beats the random forest on the publication ar
 targets** (+0.023, +0.023, +0.033; inverse-variance pooled +0.031 [+0.007, +0.055], Cochran's
 Q = 0.09 on 2 df) but at Holm p = 0.057 it misses correction, and the effect is specific to
 CheMeleon rather than to pretrained models, since frozen ChemBERTa-2 pools negative on the same arm.
+**The publication-shift penalty is not class-symmetric on TG2** — sensitivity falls under all three
+aggregation estimators (fold −0.503, pooled −0.499, equal-weight publication −0.340 for the random
+forest) while specificity falls under none; the replication targets lose both rates, and MAO-B's
+apparent specificity asymmetry does not survive a change of estimator. Nothing survives Holm on any
+target under any estimator, and the cross-target comparison is confounded with protocol and
+prevalence (§5.17).
+
+**Statistically supported (continued):** **activity cliffs are harder for every model on every
+target** — cliff pairs rank below distant pairs at a matched tenfold potency gap in 58 of 58
+model × arm comparisons, 16 significant after Holm, with Chemprop below chance at 0.468 on TG2
+`scaffold_pub` (§5.18), and the direction survives a fingerprint-only similarity definition in 34 of
+38 comparisons, unanimously on both replication targets (§5.18); **accuracy is uninformative on
+these folds**, since Chemprop posts the highest accuracy in the TG2 publication arm (0.704) at
+chance discrimination (AUROC 0.542, balanced accuracy 0.515, §5.17); **errors concentrate by source
+publication** — observed between-publication spread two to three times a size-matched permutation
+null at p < 0.001 on every target and arm, with the worst fifth of publications carrying 44–60% of
+all error mass, and about one molecule in ten misclassified by nine of ten entrants where
+independent errors predict almost none (§5.20).
+
+**Direction-consistent, offered as the most economical explanation rather than as a demonstration:**
+**the models predict the local class prior rather than the molecule** — a publication's active
+fraction correlates negatively with its false-negative rate and positively with its false-positive
+rate in all ten target × arm × rate combinations, eight at p < 0.05; molecules below 0.4 Tanimoto to
+training are called inactive (87.9% of MAO-B actives missed under shift) and those above 0.7 are
+called active (94.3% false-positive rate on TG2). This accounts for §5.17's asymmetry and its
+cross-target variation without a target-specific story, but nothing here manipulates the prior and
+observes the error change (§5.20).
+
+**A demonstrated null, pre-registered as the expected outcome:** **the generalisation failures are
+not memorisation** — across 498 refit folds the in-sample-minus-out-of-fold gap is 0.085–0.332
+everywhere, but median in-sample AUROC is 0.975–0.997 for all three model families, so that gap
+measures the train-fit ceiling of 2048-bit fingerprints against a few hundred molecules and cannot
+support an overfitting claim either way. The shift term that survives the learning-curve control is
+confined to publication-held-out CDK2 and MAO-B, +0.154 [+0.127, +0.181] against a control of
++0.005, does not resolve on TG2 at all, and is confounded with §5.14's aggregation effect, so its
+identity is not established (§5.21).
+
+**Not established, with the prediction written first:** **validation-fold class balance does not
+explain per-seed variance** — every confidence interval spans zero on both TG2 arms, largest
+r² = 0.051, point estimates mostly of the opposite sign, and no contrast between models that select
+a training length on the fold (+0.046 mean slope) and those that do not (+0.120); the spread is
+better explained by model skill (mean AUROC against SD, r = −0.912 on TG2 `scaffold`), an
+explanation found after the fact and therefore untested (§5.19).
 
 **Scoped rather than overturned:** conformal prediction holds coverage under distribution shift —
 true under scaffold shift with i.i.d. calibration, false under publication shift with the same
@@ -1874,8 +2442,9 @@ PubMed or arXiv records during preparation of this draft.
    2024;52(D1):D1180–D1192. doi:10.1093/nar/gkad1004. Targets used: CHEMBL2730 (TGM2, P21980),
    CHEMBL2810 (TGM1, P22735), CHEMBL3363 (TGM3, Q08188), CHEMBL4530 (F13A1, P00488),
    CHEMBL3988613 (guinea-pig TG2).
-3. ✓ Li Y, Wagle J. Fine-tuning LLMs as Jev models. arXiv:2610.02076. *(Preprint; not peer
-   reviewed at time of writing.)*
+3. ✓ Li Y, Wagle J. LLM-as-Jev: LLMs Are Already Jev-Style Decision Models — When and How to
+   Fine-Tune Them. arXiv:2610.02076, submitted 2026-10-01. *(Preprint; not peer reviewed at time
+   of writing.)*
 4. ✓ Dettmers T, Pagnoni A, Holtzman A, Zettlemoyer L. QLoRA: Efficient Finetuning of Quantized
    LLMs. *Advances in Neural Information Processing Systems (NeurIPS)* 2023. arXiv:2305.14314
 5. Guo C, Pleiss G, Sun Y, Weinberger KQ. On calibration of modern neural networks.
@@ -1949,7 +2518,134 @@ PubMed or arXiv records during preparation of this draft.
     group-conditioned and three cluster-conditioned variants. The closest prior art to §5.13 and
     §5.16; see §2.3.)*
 
-References 21–28 were added during the final audits of 2026-11-05. **All bibliographic details
+29. ✓ van Tilborg D, Alenicheva A, Grisoni F. Exposing the Limitations of Molecular Machine
+    Learning with Activity Cliffs. *Journal of Chemical Information and Modeling*
+    2022;62(23):5938–5951. doi:10.1021/acs.jcim.2c01073. PMID 36456532; PMCID PMC9749029.
+    *(24 methods across 30 ChEMBL bioactivity targets; descriptor-based models outperform deep
+    ones and every method struggles on activity cliffs. Benchmark and code at
+    `github.com/molML/MoleculeACE`, MIT. The cliff definition and its parameters in §5.18 are
+    taken from this paper and its implementation. Verified 2026-11-09 against the PMC record;
+    the publisher page returned HTTP 403 and PMC was used instead. Note that MEDLINE gives the
+    issue date as 12 December 2022 and PMC as 1 December 2022; volume, issue and pages agree.)*
+
+References 30–46 were supplied as a reading list on 2026-11-10 and verified that day against
+indexed primary records (Europe PMC `resultType=core`, PubMed or arXiv). Methods were read in full
+for 36–40 where cited for software behaviour, and for 41, 42, 43 and 46; where only the abstract
+was obtainable this is stated in the entry, and no methodological claim is made about such a paper
+anywhere in this draft. `docs/literature_20papers_2026-11-10.md` records the reading in full,
+including four first-pass readings that the methods contradicted and that were corrected.
+
+30. ✓ Büchold C, Hils M, Gerlach U, Weber J, Pelzer C, Heil A, Aeschlimann D, Pasternack R.
+    Features of ZED1227: The First-In-Class Tissue Transglutaminase Inhibitor Undergoing Clinical
+    Evaluation for the Treatment of Celiac Disease. *Cells* 2022;11(10):1667.
+    doi:10.3390/cells11101667. PMID 35626704; PMCID PMC9139979.
+31. ✓ Dotsenko V, Tewes B, Hils M, et al. (CEC-3 Investigators). Transcriptomic analysis of
+    intestine following administration of a transglutaminase 2 inhibitor to prevent gluten-induced
+    intestinal damage in celiac disease. *Nature Immunology* 2024;25(7):1218–1230.
+    doi:10.1038/s41590-024-01867-0. PMID 38914866; PMCID PMC11224021.
+32. ✓ Taavela J, Elli L, Bouma G, Tye-Din JA, Schuppan D, Lundin KEA, Schumann M. Upcoming
+    Treatments in Celiac Disease: From Luminal Enzymes to Oral Immune Tolerance. *United European
+    Gastroenterology Journal* 2026;14(3):e70222. doi:10.1002/ueg2.70222. PMID 42033586;
+    PMCID PMC13109976.
+33. ✓ Javed A, Saeed A, Akhtar A, Khalid A, Khan AS, Rabba W. Role of Regulatory T Cells and
+    Transglutaminase 2 Inhibitors in Celiac Disease: A Systematic Review. *Cureus*
+    2025;17(5):e84901. doi:10.7759/cureus.84901. PMID 40575215; PMCID PMC12199851.
+34. ✓ Kounatidis D, Pavlou A, Evangelopoulos A, et al. Rethinking Celiac Disease Management:
+    Treatment Approaches Beyond the Gluten-Free Diet. *Biomedicines* 2025;14(1):29.
+    doi:10.3390/biomedicines14010029. PMID 41595566; PMCID PMC12837603. *(Published 22 December
+    2025 into the 2026 volume; the reading list gave the year as 2026.)*
+35. ✓ Tye-Din JA. Evolution in coeliac disease diagnosis and management. *JGH Open*
+    2024;8(7):e13107. doi:10.1002/jgh3.13107. PMCID PMC11217771.
+36. ✓ Wu Z, Ramsundar B, Feinberg EN, Gomes J, Geniesse C, Pappu AS, Leswing K, Pande V.
+    MoleculeNet: a benchmark for molecular machine learning. *Chemical Science* 2018;9(2):513–530.
+    doi:10.1039/c7sc02664a. PMID 29629118; PMCID PMC5868307.
+37. ✓ Yang K, Swanson K, Jin W, et al. Analyzing Learned Molecular Representations for Property
+    Prediction. *Journal of Chemical Information and Modeling* 2019;59(8):3370–3388.
+    doi:10.1021/acs.jcim.9b00237. PMID 31361484; PMCID PMC6727618. *(See also the published
+    correction, PMID 31814400.)*
+38. ✓ Heid E, Greenman KP, Chung Y, Li SC, Graff DE, Vermeire FH, Wu H, Green WH, McGill CJ.
+    Chemprop: A Machine Learning Package for Chemical Property Prediction. *Journal of Chemical
+    Information and Modeling* 2024;64(1):9–17. doi:10.1021/acs.jcim.3c01250. PMID 38147829;
+    PMCID PMC10777403.
+39. ✓ Graff DE, Morgan NK, Burns JW, et al. Chemprop v2: An Efficient, Modular Machine Learning
+    Package for Chemical Property Prediction. *Journal of Chemical Information and Modeling*
+    2026;66(1):28–33. doi:10.1021/acs.jcim.5c02332. PMID 41453060. *(Primary-verified 2026-11-10;
+    this draft previously cited Chemprop v2 without a verified record.)*
+40. ✓ Qiao J, Jin J, Wang D, et al. A self-conformation-aware pre-training framework for molecular
+    property prediction with substructure interpretability. *Nature Communications*
+    2025;16(1):4382. doi:10.1038/s41467-025-59634-0. PMID 40355450; PMCID PMC12069555. *(SCAGE.)*
+41. ✓ López-Pérez K, Miranda-Quintana RA. Extended Activity Cliffs-Driven Approaches on Data
+    Splitting for the Study of Bioactivity Machine Learning Predictions. *Molecular Informatics*
+    2025;44(1):e202400054. doi:10.1002/minf.202400054. PMID 39558572; PMCID PMC12143937.
+    *(Methods read in full. Eight selection strategies — random, medoid, uniform, diverse,
+    Kennard-Stone, eSALI, anti-eSALI, bSALI — on the 30 van Tilborg [29] targets, regression scored
+    by RMSE. None is a scaffold or group split, and the selecting method also chooses the test set,
+    so strategies are not scored on a common held-out set. Cited here only for eSIM and eSALI as
+    activity-landscape descriptors, and not on the splitting question in either direction.)*
+42. ✓ Cui C, Su X, Zhang Z, Velez-Arce A, Wang J, Shi X, Zhang Y, Wu J, Chen YZ, Zitnik M, Shen W.
+    Activity-cliff awareness enables robust graph learning for molecular property prediction.
+    *Nature Communications* 2026;17(1):9376. doi:10.1038/s41467-026-75713-2. PMID 42680733;
+    PMCID PMC13534492. *(ACANet. Methods read in full. The headline protocol splits 80/20 within
+    spectral ECFP clusters, which is weaker than our arms; the results that bear on our setting are
+    the supplementary Bemis–Murcko scaffold-held-out split, improved on all 30 targets, and the
+    cliff-rich split removing test molecules above 0.90 similarity to training, 28 of 30.)*
+43. ✓ Tamura S, Miyao T, Bajorath J. Large-scale prediction of activity cliffs using machine and
+    deep learning methods of increasing complexity. *Journal of Cheminformatics* 2023;15:4.
+    doi:10.1186/s13321-022-00676-7. PMCID PMC9825040. *(Methods read in full. Pair classification,
+    not single-compound prediction; class-specific cliff threshold of mean plus two standard
+    deviations. The leakage-excluded arm covers 42 of the 100 classes. The abstract's claim that
+    accuracy was driven by memorisation is the authors' interpretation of the leakage comparison;
+    no control experiment in the paper isolates memorisation, and we do not repeat the claim as
+    established.)*
+44. Parrondo-Pizarro R, Lanini J, Rodríguez-Pérez R. Uncertainty Quantification in Molecular
+    Machine Learning for Property Predictions under Data Shifts. *Journal of Chemical Information
+    and Modeling* 2026;66(2):923–935. doi:10.1021/acs.jcim.5c02381. PMID 41533656. *(Citation
+    verified; full text paywalled and not obtained, so no methodological claim is made.)*
+45. Kötter A, Singh K, Matter H, Hessler G, Grebner C. Upgrading Reliability in Molecular Property
+    Prediction by Robust Quantification of Uncertainty from Machine Learning Models. *Journal of
+    Chemical Information and Modeling* 2025;65(20):10819–10831. doi:10.1021/acs.jcim.5c00464.
+    PMID 41060699. *(Citation verified; full text paywalled and not obtained. The methods,
+    datasets and splitting strategies are not stated in the indexed record, so this draft cites its
+    conclusion only and makes no comparison of designs.)*
+46. ✓ Agboola SS, Agboola OE, Olasehinde OR, et al. Activity cliffs resist prediction within and
+    across protein kinases: a leakage-controlled machine-learning analysis of structure-potency
+    discontinuities. *Bioorganic Chemistry* 2026;181:110406. doi:10.1016/j.bioorg.2026.110406.
+    PMID 42612264. *(Abstract and deposited code and derived results at doi:10.5281/zenodo.21522395
+    read; publisher full text paywalled. Reported figures are average precision, not AUROC.)*
+
+References 47–53 are the entrants benchmarked in §5.10 and the two benchmark studies cited beside
+them. Until 2026-11-10 this draft benchmarked ten models while citing none of them; each entry below
+was verified that day against the arXiv or publisher record named in it. Four are arXiv preprints
+with no journal reference listed, which is marked in the entry rather than left to the reader.
+
+47. ✓ Burns JW, Zalte AS, Abreu CRA, Sieg J, Feldmann C, Mathea M, Green WH. Deep Learning
+    Foundation Models from Classical Molecular Descriptors. arXiv:2506.15792, v1 18 June 2025,
+    v2 9 February 2026. *(CheMeleon. Preprint; no journal reference listed.)*
+48. ✓ Chithrananda S, Grand G, Ramsundar B. ChemBERTa: Large-Scale Self-Supervised Pretraining for
+    Molecular Property Prediction. arXiv:2010.09885, 19 October 2020. *(Preprint; no journal
+    reference listed.)*
+49. ✓ Ahmad W, Simon E, Chithrananda S, Grand G, Ramsundar B. ChemBERTa-2: Towards Chemical
+    Foundation Models. arXiv:2209.01712, 5 September 2022. *(Preprint; no journal reference listed.
+    The checkpoint used here is `DeepChem/ChemBERTa-77M-MTR`. Third-party reproductions of this
+    paper's MoleculeNet table are not quoted anywhere in this draft.)*
+50. ✓ Ross J, Belgodere B, Chenthamarakshan V, Padhi I, Mroueh Y, Das P. Large-scale chemical
+    language representations capture molecular structure and properties. *Nature Machine
+    Intelligence* 2022;4:1256–1264. doi:10.1038/s42256-022-00580-7. Preprint arXiv:2106.09553.
+    *(MoLFormer-XL; checkpoint `ibm-research/MoLFormer-XL-both-10pct`. The arXiv page names no
+    journal; the journal version was confirmed separately against the Crossref record.)*
+51. ✓ Ben Hicham KK, Rittig JG, Grohe M, Mitsos A. Tabular foundation models for in-context
+    prediction of molecular properties. arXiv:2604.16123, v1 17 April 2026, v2 20 April 2026.
+    *(The tabular entrant in §5.10. Preprint; no journal reference listed, and recent.)*
+52. ✓ Praski M, Adamczyk J, Czech W. Benchmarking Pretrained Molecular Embedding Models For
+    Molecular Representation Learning. arXiv:2508.06199, v1 8 August 2025, v5 3 November 2026.
+    *(Preprint; no journal reference listed. Version drift noted: an earlier internal review of
+    ours cited v4.)*
+53. ✓ Deng J, Yang Z, Wang H, Ojima I, Samaras D, Wang F. A systematic study of key elements
+    underlying molecular property prediction. *Nature Communications* 2023;14(1):6395.
+    doi:10.1038/s41467-023-41948-6. PMID 37833262; PMCID PMC10575948.
+
+References 21–28 were added during the final audits of 2026-11-05, and reference 29 on 2026-11-09
+for §5.18. **All bibliographic details
 above marked ✓ have now been checked against publisher, PubMed, arXiv or institutional-repository
 records.** Two corrections arose from that check and are logged in
 [`audit_2026-11-05.md`](audit_2026-11-05.md): reference 24 does not discuss Mondrian conformal

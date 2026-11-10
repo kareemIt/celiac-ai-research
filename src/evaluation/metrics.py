@@ -26,6 +26,49 @@ def classification(y, p):
     }
 
 
+def _ratio(num, den):
+    return float(num) / den if den else np.nan
+
+
+def per_class(y, p, threshold):
+    """Threshold-dependent metrics, kept separate from classification() so that function's
+    committed outputs do not change. Undefined ratios (an empty row or column of the confusion
+    matrix) are nan rather than 0, because 0 would read as a measured failure."""
+    y, p = np.asarray(y), np.asarray(p)
+    pred = p >= threshold
+    tp = int(np.sum((y == 1) & pred))
+    fn = int(np.sum((y == 1) & ~pred))
+    fp = int(np.sum((y == 0) & pred))
+    tn = int(np.sum((y == 0) & ~pred))
+    sens, spec = _ratio(tp, tp + fn), _ratio(tn, tn + fp)
+    ppv = _ratio(tp, tp + fp)
+    return {
+        "tp": tp, "fn": fn, "fp": fp, "tn": tn,
+        "sensitivity": sens,
+        "specificity": spec,
+        "fnr": np.nan if np.isnan(sens) else 1 - sens,
+        "fpr": np.nan if np.isnan(spec) else 1 - spec,
+        "ppv": ppv,
+        "npv": _ratio(tn, tn + fn),
+        "accuracy": _ratio(tp + tn, tp + tn + fp + fn),
+        "balanced_accuracy": np.nan if np.isnan(sens) or np.isnan(spec) else (sens + spec) / 2,
+        "f1": np.nan if np.isnan(ppv) or np.isnan(sens) or ppv + sens == 0 else 2 * ppv * sens / (ppv + sens),
+        "mcc": matthews_corrcoef(y, pred) if len(np.unique(y)) == 2 else np.nan,
+        "pred_pos_rate": _ratio(tp + fp, tp + tn + fp + fn),
+    }
+
+
+def best_balanced_threshold(y, p):
+    """The threshold maximising balanced accuracy on these same labels: an oracle upper bound,
+    not an achievable operating point. Ties go to the lowest threshold."""
+    y, p = np.asarray(y), np.asarray(p)
+    if len(np.unique(y)) < 2:
+        return np.nan
+    cands = np.unique(np.concatenate([p, [0.0, 1.0]]))
+    scores = [per_class(y, p, t)["balanced_accuracy"] for t in cands]
+    return float(cands[int(np.nanargmax(scores))])
+
+
 def regression(y, pred):
     y, pred = np.asarray(y), np.asarray(pred)
     const = np.ptp(pred) == 0  # correlations undefined for a constant predictor

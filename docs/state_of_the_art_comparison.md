@@ -589,11 +589,33 @@ edited around.
 
 References 1, 2, 4, 5, 7, 8, 9, 10, 11, 13 and 17 were verified against the publisher or arXiv page
 during this review. References 3 and 13 are 2026 preprints: real and fetched, but recent and not
-peer-reviewed at the time of writing, and marked as such wherever they are used above. References 6,
-12, 16 and 18 are cited from secondary confirmation and should be checked against the primary source
-before they appear in a manuscript. Reported figures that came only from third-party aggregator
-pages — notably the ChemBERTa-2 MoleculeNet table — are deliberately **not** quoted anywhere in this
-document.
+peer-reviewed at the time of writing, and marked as such wherever they are used above. Reported
+figures that came only from third-party aggregator pages — notably the ChemBERTa-2 MoleculeNet
+table — are deliberately **not** quoted anywhere in this document.
+
+**Update, 2026-11-10.** The four references previously held on secondary confirmation were checked
+against primary records, and three of the statements above needed correcting:
+
+- **Reference 6 (Chemprop v2) is no longer a preprint.** It is published: *Journal of Chemical
+  Information and Modeling* 2026;66(1):28–33, doi:10.1021/acs.jcim.5c02332, PMID 41453060. The
+  entry above, describing it as a Cambridge Engage preprint from September 2025, is out of date.
+- **Reference 16 (ADMET-AI) is confirmed**, with the full author list: Swanson K, Walther P, Leitz
+  J, Mukherjee S, Wu JC, Shivnaraine RV, Zou J. *Bioinformatics* 2024;40(7):btae416,
+  doi:10.1093/bioinformatics/btae416, PMID 38913862, PMCID PMC11226862. A 2023 bioRxiv preprint of
+  the same work also exists (doi:10.1101/2023.12.28.573531) and should not be cited in its place.
+- **Reference 12 (Uni-Mol2) is a preprint with no venue.** arXiv:2406.14969, v1 21 June 2024, v2 1
+  July 2024, authors Ji X, Wang Z, Gao Z, Zheng H, Zhang L, Ke G, E W. The arXiv record lists no
+  journal or conference reference, so "(2024)" above should read "preprint".
+- **Reference 18 (CLAMP) carries an unconfirmed venue.** arXiv:2303.03363, v1 6 March 2023, v2 16
+  June 2023, authors Seidl P, Vall A, Hochreiter S, Klambauer G. The arXiv comments field says
+  "ICML version", but no proceedings reference is listed, so the "ICML 2023" attribution above is
+  not primary-verified and a PMLR citation must not be asserted without checking the proceedings.
+- **Reference 1 has drifted.** Praski et al. is now at v5 (3 November 2026); the entry above cites
+  v4 (February 2026). Any figure quoted from it should name the version it came from.
+
+References 7, 8, 9, 10 and 13 were re-verified the same day and promoted into `paper.md` as
+references 47–51, together with 1 and 17 as 52 and 53. Before that date `paper.md` benchmarked ten
+models while citing none of them.
 
 ---
 

@@ -1,0 +1,2 @@
+target,split,seed,model,calls,distinct_aurocs,auroc_low,auroc_high,spread,n_pos,n_neg,pairs,one_pair,tied_pairs,max_prob_difference,committed
+tg2,scaffold,15,rf,25,2,0.8608647450110865,0.8619733924611973,0.0011086474501108556,41,22,902,0.0011086474501108647,5,1.1102230246251565e-16,0.8619733924611973
